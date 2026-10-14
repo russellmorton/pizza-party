@@ -18,8 +18,6 @@ export const SAUCES = {
 };
 
 export const MAX_TOPPINGS = 24;
-export const SAUCE_DONE = .8;     // fraction of the pizza to cover before the rest fills itself in
-export const CHEESE_DONE = 140;   // shreds of cheese
 export const ROLL_DRAG = 5;       // board widths of rolling to flatten the dough
 export const LOG_HEAT = .3;
 
@@ -44,6 +42,14 @@ export function makeOrder(served = 0, rand = Math.random) {
 export function orderText(order) {
   const parts = Object.entries(order.toppings).map(([id, n]) => `${word(n)} ${named(id, n)}`);
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts.at(-1) : parts[0];
+}
+
+// Sauces can be mixed, a ladle at a time. An order needs its own sauce on the pizza,
+// and no sauce that isn't on the order.
+export function sauceStatus(order, dabs) {
+  const kinds = new Set(dabs.map(d => d.k));
+  const missing = !kinds.has(order.sauce), extra = [...kinds].filter(k => k !== order.sauce);
+  return { done: !missing && !extra.length, missing, extra };
 }
 
 export function countToppings(placed) {
@@ -99,6 +105,14 @@ export function dab(cov, x, y, r) {
 export const coverage = cov => cov.covered.reduce((a, v) => a + v, 0) / cov.cells.length;
 export function gaps(cov) {
   return cov.cells.filter((_, i) => !cov.covered[i]);
+}
+
+// Cuts run through the middle at 0°, 45°, 90° or 135° (k = 0..3). A swipe picks the
+// cut closest to its direction, or the nearest one not made yet.
+export function cutFor(dx, dy, done = []) {
+  const want = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 4) + 4) % 4;
+  for (const step of [0, 1, -1, 2]) { const k = (want + step + 4) % 4; if (!done.includes(k)) return k; }
+  return -1;
 }
 
 // Rolling flattens the dough from a ball into a full-size base, and smooths its lumps.
