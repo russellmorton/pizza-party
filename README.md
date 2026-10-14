@@ -11,6 +11,8 @@ A pizza making game for a four-year-old. A hungry monster comes to the counter w
 - **Orders:** each monster wants a sauce and a number of toppings, shown on its order ticket as pictures and dots. Orders start with one kind of topping and grow to three. Every fifth monster throws a pizza party.
 - **Free play:** make any pizza you like.
 
+Live at https://pizza-party-wheat.vercel.app
+
 ## Running it
 
 No build step. It's a static page with plain ES modules.
@@ -38,6 +40,6 @@ npm test           # both
 
 ## Deploying
 
-Set up like Paint Pots: Vercel serves the repo root as a static site (`vercel.json`), and `.vercelignore` keeps tests and tooling out. GitHub Actions runs the tests on every push and pull request. Vercel Web Analytics (`src/analytics.js`) counts visits to the live site, without cookies.
+Pushes to `main` deploy to production through Vercel's GitHub integration; pull requests get preview deployments. Vercel serves the repo root as a static site (`vercel.json`), and `.vercelignore` keeps tests and tooling out. GitHub Actions runs the tests on every push and pull request. Vercel Web Analytics (`src/analytics.js`) counts visits to the live site, without cookies.
 
 The party tune is an original tarantella-style jingle written for the game.
