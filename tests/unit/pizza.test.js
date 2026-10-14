@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOPPINGS, TOPPING, MAX_TOPPINGS, makeOrder, orderText, countToppings, orderStatus, spotFor, hitTopping,
+  TOPPINGS, TOPPING, MAX_TOPPINGS, makeOrder, orderText, countToppings, orderStatus, sauceStatus, spotFor, hitTopping,
   makeCoverage, dab, coverage, gaps, cutFor, doughSize, lumpiness, bakeTick, coolTick, addLog,
 } from "../../src/pizza.js";
 
@@ -50,6 +50,15 @@ test("an order is done only with exactly the right toppings", () => {
   assert.equal(withBasil.done, false);
   assert.deepEqual(withBasil.extra, ["basil"]);
   assert.deepEqual(countToppings([t("olive"), t("basil"), t("olive")]), { olive: 2, basil: 1 });
+});
+
+test("sauces can be mixed, but an order needs its own sauce and no other", () => {
+  const order = { sauce: "tomato", toppings: {} };
+  const d = k => ({ k, x: 0, y: 0, r: .2 });
+  assert.deepEqual(sauceStatus(order, []), { done: false, missing: true, extra: [] });
+  assert.equal(sauceStatus(order, [d("tomato"), d("tomato")]).done, true);
+  assert.deepEqual(sauceStatus(order, [d("tomato"), d("pesto")]), { done: false, missing: false, extra: ["pesto"] });
+  assert.deepEqual(sauceStatus(order, [d("pesto")]), { done: false, missing: true, extra: ["pesto"] });
 });
 
 test("toppings land on the pizza and spread out", () => {

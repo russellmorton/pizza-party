@@ -44,6 +44,14 @@ export function orderText(order) {
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts.at(-1) : parts[0];
 }
 
+// Sauces can be mixed, a ladle at a time. An order needs its own sauce on the pizza,
+// and no sauce that isn't on the order.
+export function sauceStatus(order, dabs) {
+  const kinds = new Set(dabs.map(d => d.k));
+  const missing = !kinds.has(order.sauce), extra = [...kinds].filter(k => k !== order.sauce);
+  return { done: !missing && !extra.length, missing, extra };
+}
+
 export function countToppings(placed) {
   const n = {};
   for (const t of placed) n[t.id] = (n[t.id] || 0) + 1;

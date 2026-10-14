@@ -122,24 +122,27 @@ test.describe("with reduced motion", () => {
     await expect.poll(() => step(page), { timeout: 10_000 }).toBe("roll");
   });
 
-  test("the wrong sauce has to be swapped before the peel will take the pizza", async ({ page }) => {
+  test("sauces mix, but a sauce that isn't on the order must come off before the peel will take the pizza", async ({ page }) => {
     const order = await readOrder(page);
-    const [wrong, right] = order.sauce === "tomato" ? ["pesto", "tomato"] : ["tomato", "pesto"];
+    const [wrong, right] = order.sauce === "tomato" ? ["Pesto sauce", "Tomato sauce"] : ["Tomato sauce", "Pesto sauce"];
     await roll(page);
-    await tool(page, wrong === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
-    await tapSpots(page, 1);
-    await expect(page.locator("#announce")).toContainText("this monster wants");
-    await sauceAndCheese(page, wrong);
+    await tool(page, right).click();
+    await tapSpots(page, 2);
+    await expect(page.locator(".sauce-line.full")).toBeVisible();
+    await tool(page, wrong).click();                         // a ladle of the other sauce on top: both stay
+    await tapSpots(page, 1, 2);
+    await expect(page.locator("#announce")).toContainText("for this monster");
+    await expect(page.locator(".sauce-line.full")).toHaveCount(0);
+    await chip(page, "Toppings").click();
     let n = 0;
     for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
     await tool(page, "Peel").click();
     await tap(page, (await kitchen(page, "board")).board());
-    await expect(page.locator("#announce")).toContainText("sauce");
-    await expect(page.locator("#hint")).toContainText("sauce");   // shown, not only spoken
+    await expect(page.locator("#hint")).toContainText("Take it off");   // shown, not only spoken
+    await expect(page.locator("#steps li.need")).toContainText("Sauce");
     expect(await step(page)).toBe("top");
     await chip(page, "Sauce").click();                       // back to the sauce, toppings and all
-    await tool(page, right === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
-    await tapSpots(page, 1);
+    await tool(page, "Take some off").click();               // the last ladle was the wrong one
     await expect(page.locator(".sauce-line.full")).toBeVisible();
     await chip(page, "Toppings").click();
     await tool(page, "Peel").click();
@@ -153,11 +156,12 @@ test.describe("with reduced motion", () => {
     await expect(tool(page, "Take some off")).toBeDisabled();
     await tool(page, "Tomato sauce").click();
     await tapSpots(page, 1);                                  // just one ladle
-    await tool(page, "Take some off").click();               // puts the ladle back
-    await tool(page, "Take some off").click();               // takes the sauce off again
+    await tool(page, "Take some off").click();               // takes it off again, ladle still in hand
+    await expect(tool(page, "Tomato sauce")).toHaveAttribute("aria-pressed", "true");
     await expect(tool(page, "Take some off")).toBeDisabled();
-    await tool(page, "Tomato sauce").click();
-    await tapSpots(page, 2);
+    await tapSpots(page, 1);
+    await tool(page, "Pesto sauce").click();                 // and some pesto too
+    await tapSpots(page, 1, 1);
     await chip(page, "Toppings").click();                    // skip the cheese for now
     await expect(page.locator("#steps li.done")).toHaveCount(2); // rolled and sauced
     await decorate(page, "olive", 5);

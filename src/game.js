@@ -1,6 +1,6 @@
 import {
   TOPPINGS, TOPPING, SAUCES, MAX_TOPPINGS, ROLL_DRAG,
-  makeOrder, orderText, countToppings, orderStatus, spotFor, hitTopping, cutFor,
+  makeOrder, orderText, countToppings, orderStatus, sauceStatus, spotFor, hitTopping, cutFor,
   makeCoverage, dab, gaps, doughSize, bakeTick, coolTick, addLog, word, named,
 } from "./pizza.js";
 import {
@@ -25,7 +25,7 @@ let busy = false;      // a stage is finishing and will move on by itself
 
 function freshPizza() {
   return {
-    step: "roll", where: "board", roll: 0, sauce: null, dabs: [], pours: [], cov: makeCoverage(), cheese: [], handfuls: [], toppings: [],
+    step: "roll", where: "board", roll: 0, dabs: [], pours: [], cov: makeCoverage(), cheese: [], handfuls: [], toppings: [],
     bake: 0, heat: 0, cuts: [], eaten: Array(8).fill(false), box: "counter", lid: 0, lidTo: 0,
   };
 }
@@ -160,7 +160,7 @@ function updateTicket() {
     l.classList.toggle("full", n === want);
   });
   const sauceLine = ticketEl.querySelector(".sauce-line");
-  sauceLine.classList.toggle("full", P.sauce === order.sauce && P.dabs.length > 0);
+  sauceLine.classList.toggle("full", sauceStatus(order, P.dabs).done);
   const wrong = Object.keys(have).filter(id => !(id in order.toppings));
   const no = ticketEl.querySelector(".no-line");
   no.hidden = !wrong.length;
@@ -190,7 +190,7 @@ function renderSteps() {
     li.classList.toggle("now", now);
     li.classList.toggle("done", !now && stageDone(STAGES[i]));
     // when the sauce is what's stopping the peel, the Sauce chip calls you back
-    li.classList.toggle("need", STAGES[i] === "sauce" && P.step === "top" && !!order && canDecorate() && (P.sauce !== order.sauce || !P.dabs.length) && orderStatus(order, P.toppings).done);
+    li.classList.toggle("need", STAGES[i] === "sauce" && P.step === "top" && !!order && canDecorate() && !sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done);
     const b = li.querySelector("button");
     if (now) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
     b.disabled = busy || P.step === "eat";
@@ -233,7 +233,7 @@ function updateTray() {
   });
   tray.querySelectorAll(".bin").forEach(b => b.setAttribute("aria-pressed", held?.kind === "topping" && held.id === b.dataset.id));
   const u = $("tool-undo");
-  if (u) u.disabled = !held && !{ sauce: P.pours.length, cheese: P.handfuls.length, top: P.toppings.length }[P.step];
+  if (u) u.disabled = !(held && !keepsTool()) && !{ sauce: P.pours.length, cheese: P.handfuls.length, top: P.toppings.length }[P.step];
   const peel = $("tool-peel");
   if (peel) peel.classList.toggle("pulse", !held && (P.step === "top" ? canDecorate() && readyToBake() : P.where === "oven" && P.bake >= 1));
   showHint();
@@ -248,7 +248,7 @@ function showHint() {
   hint.classList.toggle("said", fresh);
 }
 const canDecorate = () => P.where === "board" && P.roll >= 1;
-const readyToBake = () => !order || (P.sauce === order.sauce && P.dabs.length > 0 && orderStatus(order, P.toppings).done);
+const readyToBake = () => !order || (sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done);
 // What's stopping the pizza from going to the next place, if anything.
 function notOnBoard() {
   if (P.where !== "board") return P.where === "oven" ? "The pizza is in the oven!" : P.bake >= 1 ? "The pizza is already baked!" : "The pizza isn't on the board!";
@@ -333,7 +333,7 @@ function fit() {
   L = layout(W, H, focus); Lfrom = null;
   // sauce is painted at the size the pizza has on the big board
   sizeSauce(sauceCv, layout(W, H, "board").board.r * .92 * .84, dpr);
-  if (P.sauce) paintDabs(sauceCv, P.dabs, P.sauce);
+  paintDabs(sauceCv, P.dabs);
   lastSig = null;
 }
 new ResizeObserver(fit).observe(wrap);
@@ -392,7 +392,7 @@ function frame(now) {
   // Only redraw when something has changed or is moving: a big canvas is costly to repaint.
   const ovenLive = focus === "oven" || P.where === "oven" || P.heat > 0 || sparks.length > 0;
   const moving = Lfrom || rollAnim || cutAnim || puffs.length || ovenLive || P.lid !== P.lidTo;
-  const sig = [W, H, dpr, P.step, P.where, P.box, P.roll, pinY, P.dabs.length, P.sauce, P.cheese.length, P.toppings.length,
+  const sig = [W, H, dpr, P.step, P.where, P.box, P.roll, pinY, P.dabs.length, P.cheese.length, P.toppings.length,
     P.toppings.reduce((a, t) => a + t.x + t.y * 3, 0), P.cuts.join(), P.eaten.join(), held?.kind].join("|");
   if (moving || sig !== lastSig) {
     lastSig = moving ? null : sig;
@@ -618,16 +618,18 @@ function keyUse() {
   if (!held && P.where === "box") return pickUpBox(r.left + L.counter.box.x, r.top + L.counter.box.y);
   say(hintText());
 }
-// "Take some off": the last ladle of sauce, handful of cheese or topping, or whatever is in your hand.
+// "Take some off": the last ladle of sauce, handful of cheese or topping. A topping or tool
+// in your hand goes back first, but a ladle or the cheese stays in your hand.
+const keepsTool = () => held && (held.kind === "ladle" || held.kind === "cheese");
 function undo() {
-  if (held && !carrying()) return putAway();
+  if (held && !carrying() && !keepsTool()) return putAway();
   if (P.where !== "board") return;
   if (P.step === "sauce" && P.pours.length) {
     P.dabs.splice(P.dabs.length - P.pours.pop());
     P.cov = makeCoverage();
     for (const d of P.dabs) dab(P.cov, d.x, d.y, d.r);
     clearSauce(sauceCv);
-    if (P.sauce) paintDabs(sauceCv, P.dabs, P.sauce);
+    paintDabs(sauceCv, P.dabs);
     sfx.pop(); updateTicket(); updateTray();
   } else if (P.step === "cheese" && P.handfuls.length) {
     P.cheese.splice(P.cheese.length - P.handfuls.pop());
@@ -652,40 +654,32 @@ function rollButton() {
 }
 
 // ---------- sauce and cheese: as much or as little as you like ----------
-function chooseSauce(k) {
-  if (P.sauce === k) return;
-  P.sauce = k;
-  paintDabs(sauceCv, P.dabs, k); // recolour what's already spread
-  updateTicket();
-}
-function addDab(x, y, r = .2) {
+function addDab(k, x, y, r = .2) {
   if (Math.hypot(x, y) > 1.15) return false;
   const sp = Array.from({ length: 2 }, () => [(Math.random() - .5) * r, (Math.random() - .5) * r, r * (.06 + Math.random() * .06)]);
-  const d = { x, y, r, sp };
+  const d = { k, x, y, r, sp };
   P.dabs.push(d);
-  paintDabs(sauceCv, [d], P.sauce);
+  paintDabs(sauceCv, [d]);
   dab(P.cov, x, y, r);
   return true;
 }
 // A ladle of sauce lands where you tap and swirls out.
 function pour(u) {
   if (!canDecorate() || busy) return;
-  chooseSauce(held.id);
+  const k = held.id;
   sfx.squish();
   const pizza = P, n = P.pours.push(0) - 1;
   const pts = [[0, 0], ...Array.from({ length: 9 }, (_, i) => [Math.cos(i * .9) * .045 * (i + 1), Math.sin(i * .9) * .045 * (i + 1)])];
   pts.forEach(([dx, dy], i) => setTimeout(() => {
     if (P !== pizza || P.pours.length <= n) return; // a new pizza, or this ladle was taken off
-    if (addDab(u.x + dx, u.y + dy, .2)) P.pours[n]++;
-    if (i === pts.length - 1) { updateTicket(); updateTray(); sauceCheck(); }
+    if (addDab(k, u.x + dx, u.y + dy, .2)) P.pours[n]++;
+    if (i === pts.length - 1) { updateTicket(); updateTray(); sauceCheck(k); }
   }, reduce ? 0 : i * 30));
 }
-// In Orders mode, pouring the wrong sauce gets a gentle word from the monster.
-function sauceCheck() {
-  if (!order || P.sauce === order.sauce || P.wrongSaid === P.sauce) return;
-  P.wrongSaid = P.sauce;
-  const want = SAUCES[order.sauce];
-  say(`Hmm, this monster wants ${want.name} sauce. Pick up the ${want.colour} sauce.`);
+// In Orders mode, pouring a sauce that isn't on the order gets a gentle word from the monster.
+function sauceCheck(k) {
+  if (!order || k === order.sauce) return;
+  say(`Hmm, no ${SAUCES[k].name} for this monster! It wants ${SAUCES[order.sauce].name}. Take some off.`);
 }
 // A handful of cheese falls where you tap.
 function sprinkleAt(u) {
@@ -750,8 +744,9 @@ function removeTopping(i) {
 }
 function notReady() {
   const want = SAUCES[order.sauce];
-  if (!P.dabs.length) return `Not yet! It needs ${want.name} sauce.`;
-  if (P.sauce !== order.sauce) return `Not yet! This monster wants ${want.name} sauce.`;
+  const sauce = sauceStatus(order, P.dabs);
+  if (sauce.extra.length) return `Not yet! No ${SAUCES[sauce.extra[0]].name} for this monster. Take it off.`;
+  if (sauce.missing) return `Not yet! It needs ${want.name} sauce.`;
   const st = orderStatus(order, P.toppings);
   if (st.extra.length) return `Not yet! Too many ${named(st.extra[0], 2)}.`;
   const id = st.missing[0], need = order.toppings[id] - (countToppings(P.toppings)[id] || 0);

@@ -75,12 +75,14 @@ function rounded(ctx, x, y, w, h, r) {
 export function sizeSauce(cv, px, dpr) {
   cv.width = cv.height = Math.max(2, Math.round(px * 2 * dpr));
 }
-export function paintDabs(cv, dabs, sauce) {
-  const c = cv.getContext("2d"), h = cv.width / 2, s = SAUCES[sauce];
+// Each dab carries its own sauce (d.k), so tomato and pesto can share a pizza.
+export function paintDabs(cv, dabs) {
+  const c = cv.getContext("2d"), h = cv.width / 2;
   c.save();
   c.setTransform(h, 0, 0, h, h, h);
   c.beginPath(); c.arc(0, 0, .985, 0, TAU); c.clip();
   for (const d of dabs) {
+    const s = SAUCES[d.k];
     c.fillStyle = s.css;
     c.beginPath(); c.arc(d.x, d.y, d.r, 0, TAU); c.fill();
     c.fillStyle = s.dark; c.globalAlpha = .45;
