@@ -23,6 +23,17 @@ async function readOrder(page) {
   for (const l of await page.locator(".ticket .line[data-id]").all()) toppings[await l.getAttribute("data-id")] = +(await l.getAttribute("data-count"));
   return { sauce, toppings };
 }
+// Picks a topping up from its box and puts it down on the pizza, at the i-th spot of a spiral.
+async function decorate(page, id, i) {
+  await tool(page, binName[id]).click();
+  await putDown(page, i);
+}
+async function putDown(page, i) {
+  const box = await page.locator("#work-canvas").boundingBox();
+  const a = i * 2.4, r = box.width * (.1 + .025 * (i % 10));
+  await page.locator("#work-canvas").click({ position: { x: box.width / 2 + Math.cos(a) * r, y: box.height / 2 + Math.sin(a) * r } });
+}
+const dotsOn = (page, id) => page.locator(`.line[data-id="${id}"] .dots i.on`);
 const binName = { pepperoni: "Pepperonis", mushroom: "Mushrooms", olive: "Olives", pepper: "Green peppers", pineapple: "Pineapples", basil: "Basil leaves" };
 
 async function rollSauceCheese(page, sauce = "tomato") {
@@ -67,7 +78,8 @@ test.describe("with reduced motion", () => {
     const order = await readOrder(page);
     await rollSauceCheese(page, order.sauce);
     await expect(tool(page, "Bake it!")).toBeHidden();
-    for (const [id, n] of Object.entries(order.toppings)) for (let i = 0; i < n; i++) await tool(page, binName[id]).click();
+    let spot = 0;
+    for (const [id, n] of Object.entries(order.toppings)) for (let i = 0; i < n; i++) await decorate(page, id, spot++);
     await expect(page.locator(".ticket .line.full")).toHaveCount(1 + Object.keys(order.toppings).length);
     await bakeCutEat(page);
     await expect(page.locator("#shelf > div")).toHaveCount(1, { timeout: 10_000 });
@@ -90,9 +102,10 @@ test.describe("with reduced motion", () => {
     const order = await readOrder(page);
     await rollSauceCheese(page, order.sauce);
     const [id, n] = Object.entries(order.toppings)[0];
-    for (const [k, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) await tool(page, binName[k]).click();
+    let spot = 0;
+    for (const [k, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) await decorate(page, k, spot++);
     await expect(tool(page, "Bake it!")).toBeVisible();
-    await tool(page, binName[id]).click();
+    await decorate(page, id, spot++);
     await expect(page.locator(`.line[data-id="${id}"] .extra`)).toHaveText("+1");
     await expect(tool(page, "Bake it!")).toBeHidden();
     await tool(page, "Take one off").click();
@@ -101,13 +114,50 @@ test.describe("with reduced motion", () => {
     expect(n).toBeGreaterThan(0);
   });
 
+  test("toppings are picked up and put down by hand, and can be moved", async ({ page }) => {
+    const order = await readOrder(page);
+    await rollSauceCheese(page, order.sauce);
+    const [id] = Object.keys(order.toppings);
+    await tool(page, binName[id]).click();
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "true");
+    await expect(dotsOn(page, id)).toHaveCount(0);   // still in the hand
+    await putDown(page, 3);
+    await expect(dotsOn(page, id)).toHaveCount(1);
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "false");
+    await putDown(page, 3);                           // pick it back up off the pizza...
+    await expect(dotsOn(page, id)).toHaveCount(0);
+    await putDown(page, 7);                           // ...and put it somewhere else
+    await expect(dotsOn(page, id)).toHaveCount(1);
+    await tool(page, binName[id]).click();            // tapping the box again puts it back
+    await tool(page, binName[id]).click();
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "false");
+    await expect(dotsOn(page, id)).toHaveCount(1);
+  });
+
+  test("swiping across the pizza cuts it", async ({ page }) => {
+    await page.getByRole("button", { name: "Free play" }).click();
+    await rollSauceCheese(page);
+    await tool(page, "Bake it!").click();
+    for (let i = 0; i < 4; i++) await tool(page, "Add wood").click();
+    await expect.poll(() => step(page), { timeout: 20_000 }).toBe("cut");
+    const box = await page.locator("#work-canvas").boundingBox();
+    const cx = box.x + box.width / 2, cy = box.y + box.height / 2, d = box.width * .45;
+    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) {
+      await page.mouse.move(cx - dx * d, cy - dy * d);
+      await page.mouse.down();
+      await page.mouse.move(cx + dx * d, cy + dy * d, { steps: 6 });
+      await page.mouse.up();
+    }
+    await expect(page.locator("#shelf > div")).toHaveCount(1, { timeout: 10_000 });
+  });
+
   test("free play bakes any pizza, and five pizzas make a party", async ({ page }) => {
     test.setTimeout(240_000);
     await page.getByRole("button", { name: "Free play" }).click();
     await expect(page.locator(".ticket .any")).toHaveText("Any pizza you like!");
     for (let n = 1; n <= 5; n++) {
       await rollSauceCheese(page);
-      await tool(page, "Olives").click();
+      await decorate(page, "olive", 0);
       await bakeCutEat(page);
       if (n < 5) {
         await expect(page.locator("#shelf > div")).toHaveCount(n, { timeout: 10_000 });

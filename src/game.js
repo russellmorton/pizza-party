@@ -1,6 +1,6 @@
 import {
   TOPPINGS, TOPPING, SAUCES, MAX_TOPPINGS, SAUCE_DONE, CHEESE_DONE, ROLL_DRAG,
-  makeOrder, orderText, countToppings, orderStatus, spotFor, hitTopping,
+  makeOrder, orderText, countToppings, orderStatus, spotFor, hitTopping, cutFor,
   makeCoverage, dab, coverage, gaps, doughSize, bakeTick, coolTick, addLog, word, named,
 } from "./pizza.js";
 import { TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOven, OVEN_FLOOR, sizeSauce, paintDabs, clearSauce } from "./draw.js";
@@ -19,10 +19,9 @@ let served = [];
 let customer = newCustomer(), order = makeOrder(0);
 let P = freshPizza();
 let busy = false;      // a step is finishing and will move on by itself
-let inFlight = 0;      // toppings flying to the pizza
 
 function freshPizza() {
-  return { step: "roll", roll: 0, sauce: null, dabs: [], cov: makeCoverage(), cheese: [], toppings: [], bake: 0, heat: 0, cuts: 0, eaten: Array(8).fill(false), selected: null };
+  return { step: "roll", roll: 0, sauce: null, dabs: [], cov: makeCoverage(), cheese: [], toppings: [], bake: 0, heat: 0, cuts: [], eaten: Array(8).fill(false) };
 }
 function newCustomer(prev) {
   let c;
@@ -108,13 +107,13 @@ const ICON = {
 };
 
 // Paints a topping into a small <canvas>, for the bins, the order ticket and flying pieces.
-function toppingCanvas(cv, id, cssSize, scale = .38) {
+function toppingCanvas(cv, id, cssSize, scale = .38, rot = id === "basil" ? -.5 : 0) {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   cv.width = cv.height = Math.round(cssSize * dpr);
   cv.style.width = cv.style.height = cssSize + "px";
   const c = cv.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawTopping(c, id, cssSize / 2, cssSize / 2, cssSize * scale, id === "basil" ? -.5 : 0);
+  drawTopping(c, id, cssSize / 2, cssSize / 2, cssSize * scale, rot);
 }
 
 // ---------- customer card ----------
@@ -184,13 +183,13 @@ function renderTray() {
   tray.dataset.step = st;
   tray.querySelectorAll(".bin").forEach(b => {
     toppingCanvas(b.querySelector("canvas"), b.dataset.id, 46);
-    b.addEventListener("click", () => tapBin(b.dataset.id, b));
+    b.addEventListener("click", e => tapBin(b.dataset.id, b, e.detail === 0));
   });
   const on = (id, fn) => { const el = $(`tool-${id}`); if (el) el.addEventListener("click", () => { audio(); fn(el); }); };
   on("roll", rollButton);
   for (const k of Object.keys(SAUCES)) on(`sauce-${k}`, () => ladle(k));
   on("cheese", grate);
-  on("undo", () => P.toppings.length && removeTopping(P.toppings.length - 1));
+  on("undo", () => held ? putBack() : P.toppings.length && removeTopping(P.toppings.length - 1));
   on("bake", startBake);
   on("log", stoke);
   on("cut", () => cutOnce());
@@ -200,8 +199,8 @@ function updateTray() {
   if (P.step === "sauce") for (const k of Object.keys(SAUCES)) $(`tool-sauce-${k}`)?.setAttribute("aria-pressed", P.sauce === k);
   if (P.step === "top") {
     $("tool-bake").hidden = !readyToBake();
-    $("tool-undo").disabled = !P.toppings.length;
-    tray.querySelectorAll(".bin").forEach(b => b.setAttribute("aria-pressed", P.selected === b.dataset.id));
+    $("tool-undo").disabled = !P.toppings.length && !held;
+    tray.querySelectorAll(".bin").forEach(b => b.setAttribute("aria-pressed", held?.id === b.dataset.id));
   }
 }
 const readyToBake = () => !order || orderStatus(order, P.toppings).done;
@@ -210,7 +209,7 @@ const workLabel = {
   roll: "A ball of dough on the board. Roll it flat.",
   sauce: "Pizza dough. Spread the sauce.",
   cheese: "Pizza with sauce. Sprinkle the cheese.",
-  top: "Pizza with cheese. Tap a topping, then tap the pizza.",
+  top: "Pizza with cheese. Tap a topping box to pick one up, then tap the pizza to put it down.",
   bake: "The pizza is in the oven.",
   cut: "A baked pizza. Cut it into slices.",
   eat: "The monster is eating the pizza.",
@@ -218,14 +217,15 @@ const workLabel = {
 function setStep(step) {
   P.step = step;
   busy = false;
+  if (step !== "top") putBack(true);
   renderSteps();
   renderTray();
   cv.setAttribute("aria-label", workLabel[step]);
   if (step === "sauce") say("Nice and flat! Now spread the sauce.");
   if (step === "cheese") say("Now sprinkle on the cheese!");
-  if (step === "top") say(order ? `Now the toppings! ${cap(orderText(order))}.` : "Now add your toppings! Tap the oven when it's ready.");
+  if (step === "top") say(order ? `Now the toppings! ${cap(orderText(order))}. Pick one up and put it on the pizza.` : "Now decorate your pizza! Pick up a topping and put it on the pizza.");
   if (step === "bake") say("Into the oven! Add wood to make the fire hot.");
-  if (step === "cut") say("Ding! It's ready. Cut it into slices.");
+  if (step === "cut") say("Ding! It's ready. Swipe across the pizza to cut it into slices.");
 }
 function finishStep(next, delay = 800) {
   if (busy) return;
@@ -261,9 +261,15 @@ function toU(e) {
 // animation bits that aren't part of the pizza itself
 let pinY = null, rollAnim = null, cutAnim = null, oven = null, sparks = [], puffs = [];
 
-let last = performance.now();
+let last = performance.now(), lastSig = null;
 function frame(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
+  // Only redraw when something has changed or is moving: a big canvas is costly to repaint.
+  const sig = [s, dpr, P.step, P.roll, pinY, P.dabs.length, P.sauce, P.cheese.length, P.toppings.length,
+    P.toppings.reduce((a, t) => a + t.x + t.y * 3, 0), P.cuts.join(), P.eaten.join()].join("|");
+  const moving = rollAnim || cutAnim || puffs.length || (P.step === "bake" && oven);
+  if (!moving && sig === lastSig) { requestAnimationFrame(frame); return; }
+  lastSig = moving ? null : sig;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, s, s);
   const c = s / 2;
@@ -371,37 +377,60 @@ function grate() {
 }
 
 // ---------- step 3: toppings ----------
-function tapBin(id, bin) {
+// Tap a box to pick a topping up, then tap the pizza to put it down where you like.
+// Tap a topping on the pizza to pick it up again and move it.
+let held = null;                       // the topping in your hand: { id, rot }
+let pointerKind = "mouse";
+const heldEl = document.createElement("canvas");
+heldEl.className = "held"; heldEl.hidden = true; heldEl.setAttribute("aria-hidden", "true");
+document.body.append(heldEl);
+function moveHeld(x, y) { heldEl.style.transform = `translate(${x}px,${y}px) rotate(${held?.rot || 0}rad)`; }
+function pickUp(id, rot, x, y) {
+  held = { id, rot };
+  const size = Math.ceil(sauceR() * TOPPING_SIZE / .38);
+  toppingCanvas(heldEl, id, size, .38, 0);
+  heldEl.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
+  heldEl.hidden = false;
+  document.body.classList.add("holding");
+  moveHeld(x, y);
+  heldEl.animate([{ scale: .6 }, { scale: 1.2 }, { scale: 1 }], { duration: reduce ? 0 : 220 });
+  updateTray();
+}
+function putBack(quiet) {
+  if (!held) return;
+  held = null;
+  heldEl.hidden = true;
+  document.body.classList.remove("holding");
+  if (!quiet) { sfx.pop(); updateTray(); }
+}
+const lastPointer = { x: 0, y: 0 };
+addEventListener("pointerdown", e => { pointerKind = e.pointerType; lastPointer.x = e.clientX; lastPointer.y = e.clientY; }, true);
+addEventListener("pointermove", e => {
+  lastPointer.x = e.clientX; lastPointer.y = e.clientY;
+  if (held && e.pointerType !== "touch") moveHeld(e.clientX, e.clientY);
+});
+
+function tapBin(id, bin, byKeyboard) {
   audio();
   if (P.step !== "top" || busy) return;
-  P.selected = id;
-  updateTray();
-  placeTopping(id, spotFor(P.toppings), bin);
-}
-function placeTopping(id, spot, fromEl) {
-  if (P.toppings.length + inFlight >= MAX_TOPPINGS) {
+  if (held?.id === id) return putBack();
+  if (P.toppings.length >= MAX_TOPPINGS) {
     sfx.full();
     say("The pizza is full!");
     return;
   }
-  const t = { id, x: spot.x, y: spot.y, rot: Math.random() * Math.PI * 2 };
-  if (reduce || !fromEl) return landTopping(t);
-  inFlight++;
-  const r = sauceR() * TOPPING_SIZE, size = Math.ceil(r * 2.6);
-  const el = document.createElement("canvas");
-  el.className = "flyer";
-  toppingCanvas(el, id, size, .38);
-  el.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
-  document.body.appendChild(el);
-  const a = fromEl.getBoundingClientRect(), b = cv.getBoundingClientRect();
-  const x0 = a.left + a.width / 2, y0 = a.top + a.height / 2;
-  const x1 = b.left + s / 2 + t.x * sauceR(), y1 = b.top + s / 2 + t.y * sauceR();
-  const xm = (x0 + x1) / 2, ym = Math.min(y0, y1) - 70;
-  el.animate([
-    { transform: `translate(${x0}px,${y0}px) scale(.7) rotate(0)` },
-    { transform: `translate(${xm}px,${ym}px) scale(1.25) rotate(${t.rot / 2}rad)`, offset: .45 },
-    { transform: `translate(${x1}px,${y1}px) scale(1) rotate(${t.rot}rad)` },
-  ], { duration: 480, easing: "cubic-bezier(.3,.1,.6,1)" }).onfinish = () => { el.remove(); inFlight--; landTopping(t); };
+  // a mouse carries it under the pointer; on a touch screen it lifts up out of its box
+  const r = bin.getBoundingClientRect();
+  const follow = !byKeyboard && (pointerKind === "mouse" || pointerKind === "pen");
+  pickUp(id, Math.random() * Math.PI * 2, follow ? lastPointer.x : r.left + r.width / 2, follow ? lastPointer.y : r.top + r.height * .25);
+  tone(600, 0, .1, "sine", .12, 900);
+  say(cap(TOPPING[id].one));
+}
+function putDown(spot) {
+  const t = { id: held.id, x: spot.x, y: spot.y, rot: held.rot };
+  putBack(true);
+  updateTray();
+  landTopping(t);
 }
 function landTopping(t) {
   if (P.step !== "top") return;
@@ -411,8 +440,8 @@ function landTopping(t) {
   if (!order) say(`${word(n)} ${named(t.id, n)}`);
   else {
     const st = orderStatus(order, P.toppings), want = order.toppings[t.id];
-    if (!want) say(`Oh no, no ${named(t.id, 2)} for this monster! Tap it to take it off.`);
-    else if (n > want) say(`Oops, too many ${named(t.id, 2)}! Tap one to take it off.`);
+    if (!want) say(`Oh no, no ${named(t.id, 2)} for this monster! Take it off.`);
+    else if (n > want) say(`Oops, too many ${named(t.id, 2)}! Take one off.`);
     else if (st.done) { say(`${cap(word(n))}! That's just right. Into the oven!`); hop(); }
     else if (n === want) { const id = st.missing.find(i => !st.extra.includes(i)) ?? st.missing[0]; say(id ? `${cap(word(n))}! Now ${word(order.toppings[id])} ${named(id, order.toppings[id])}.` : cap(word(n))); }
     else say(cap(word(n)));
@@ -430,8 +459,7 @@ function removeTopping(i) {
 // ---------- step 4: bake ----------
 const OVEN_IN = 1000, OVEN_OUT = 900;
 function startBake() {
-  if (P.step !== "top" || busy || !readyToBake() || inFlight) return;
-  P.selected = null;
+  if (P.step !== "top" || busy || !readyToBake()) return;
   oven = { phase: "in", t0: performance.now() };
   sfx.whoosh();
   setStep("bake");
@@ -481,16 +509,20 @@ function bakeFrame(now, dt) {
 }
 
 // ---------- step 5: cut and eat ----------
-function cutOnce() {
-  if (P.step !== "cut" || busy || cutAnim || P.cuts >= 4) return;
+// Each cut runs through the middle; a swipe cuts along its own direction.
+function cutOnce(dx, dy) {
+  if (P.step !== "cut" || busy || cutAnim || P.cuts.length >= 4) return;
+  const k = dx === undefined ? [0, 2, 1, 3].find(k => !P.cuts.includes(k)) : cutFor(dx, dy, P.cuts);
+  const base = k * Math.PI / 4;
+  const a = dx === undefined || Math.cos(Math.atan2(dy, dx) - base) < 0 ? base + Math.PI : base;
   sfx.slice();
   const done = () => {
-    P.cuts++;
-    if (P.cuts >= 4) { busy = true; say("Eight slices! Yum!"); setTimeout(eat, reduce ? 200 : 700); }
-    else say(`${cap(word(P.cuts * 2))} slices`);
+    P.cuts.push(k);
+    if (P.cuts.length >= 4) { busy = true; say("Eight slices! Yum!"); setTimeout(eat, reduce ? 200 : 700); }
+    else say(`${cap(word(P.cuts.length * 2))} slices`);
   };
   if (reduce) return done();
-  cutAnim = { k: P.cuts, p: 0, t0: performance.now(), ms: 420, done };
+  cutAnim = { a, p: 0, t0: performance.now(), ms: 420, done };
 }
 function eat() {
   setStep("eat");
@@ -535,6 +567,9 @@ function greet() {
 }
 
 // ---------- pointer play on the pizza ----------
+cv.addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && P.step === "top" && held) { e.preventDefault(); putDown(spotFor(P.toppings)); }
+});
 let drag = null;
 cv.addEventListener("pointerdown", e => {
   audio();
@@ -570,14 +605,19 @@ const endDrag = e => {
   if (P.step === "roll") pinY = null;
   if (P.step === "top" && tap && !busy) {
     const i = hitTopping(P.toppings, u.x, u.y);
-    if (i >= 0) removeTopping(i);
-    else if (Math.hypot(u.x, u.y) < .92) {
-      if (P.selected) placeTopping(P.selected, u, null);
-      else say("Tap a topping down below first!");
-    }
+    if (held) {
+      if (Math.hypot(u.x, u.y) < .95) putDown(u);
+      else say("Put it on the pizza!");
+    } else if (i >= 0) {
+      const [t] = P.toppings.splice(i, 1);
+      pickUp(t.id, t.rot, e.clientX, e.clientY - (e.pointerType === "touch" ? 30 : 0));
+      sfx.pop();
+      updateTicket();
+    } else say("Tap a topping down below to pick it up!");
   }
-  // a swipe right across the pizza cuts it
-  if (P.step === "cut" && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > pizzaR()) cutOnce();
+  // a swipe right across the pizza cuts it, along the way you swiped
+  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+  if (P.step === "cut" && Math.hypot(dx, dy) > pizzaR()) cutOnce(dx, dy);
   drag = null;
 };
 cv.addEventListener("pointerup", endDrag);
@@ -601,7 +641,7 @@ function party(done) {
   const pd = Math.min(devicePixelRatio || 1, 2);
   pc.width = pc.height = size * pd; pc.style.width = pc.style.height = size + "px";
   const px = pc.getContext("2d"); px.setTransform(pd, 0, 0, pd, 0, 0);
-  const big = { roll: 1, sauceFill: "tomato", bake: 1, cuts: 4, cheese: [], toppings: [] };
+  const big = { roll: 1, sauceFill: "tomato", bake: 1, cuts: [0, 1, 2, 3], cheese: [], toppings: [] };
   for (let i = 0; i < 160; i++) { const a = Math.random() * 7, d = .95 * Math.sqrt(Math.random()); big.cheese.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, a, l: .08, spot: Math.random() < .14 }); }
   for (let i = 0; i < 16; i++) big.toppings.push({ id: TOPPINGS[i % TOPPINGS.length].id, ...spotFor(big.toppings), rot: Math.random() * 6 });
   drawPizza(px, size / 2, size / 2, size * .46, big);

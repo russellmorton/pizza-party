@@ -101,6 +101,14 @@ export function gaps(cov) {
   return cov.cells.filter((_, i) => !cov.covered[i]);
 }
 
+// Cuts run through the middle at 0°, 45°, 90° or 135° (k = 0..3). A swipe picks the
+// cut closest to its direction, or the nearest one not made yet.
+export function cutFor(dx, dy, done = []) {
+  const want = ((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) % 4) + 4) % 4;
+  for (const step of [0, 1, -1, 2]) { const k = (want + step + 4) % 4; if (!done.includes(k)) return k; }
+  return -1;
+}
+
 // Rolling flattens the dough from a ball into a full-size base, and smooths its lumps.
 export const doughSize = roll => .36 + .64 * (1 - (1 - Math.min(1, roll)) ** 2);
 export const lumpiness = roll => .12 * (1 - Math.min(1, roll));

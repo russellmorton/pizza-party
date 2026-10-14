@@ -249,11 +249,10 @@ export function drawPizza(ctx, cx, cy, R, p) {
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     return [x1, y1];
   };
-  for (let k = 0; k < (p.cuts || 0); k++) cut(k * Math.PI / 4 + Math.PI, -1.02, 1.02);
+  for (const k of p.cuts || []) cut(k * Math.PI / 4, -1.02, 1.02);
   ctx.restore();
   if (p.cutAnim) {
-    const a = p.cutAnim.k * Math.PI / 4 + Math.PI;
-    const [x, y] = cut(a, -1.05, -1.05 + 2.1 * p.cutAnim.p);
+    const [x, y] = cut(p.cutAnim.a, -1.05, -1.05 + 2.1 * p.cutAnim.p);
     drawCutter(ctx, x, y, R * .13);
   }
 }

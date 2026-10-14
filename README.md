@@ -4,9 +4,9 @@ A pizza making game for a four-year-old. A hungry monster comes to the counter w
 
 1. **Roll** the ball of dough flat. Drag the rolling pin back and forth, or tap the Roll button.
 2. **Sauce:** pick tomato or pesto and spread it with your finger, or tap the ladle. Then sprinkle on the cheese.
-3. **Toppings:** tap pepperoni, mushrooms, olives, green peppers, pineapple or basil. The monster counts each one out loud. Tap a topping on the pizza to take it off.
+3. **Toppings:** decorate the pizza by hand. Tap a box (pepperoni, mushrooms, olives, green peppers, pineapple or basil) to pick a topping up, then tap the pizza to put it down. The monster counts each one out loud. Tap a topping on the pizza to pick it up and move it, or tap its box to put it back.
 4. **Bake:** the pizza slides into the brick oven. Add wood to make the fire hotter and the pizza bakes faster. The cheese melts and the crust turns golden. It never burns.
-5. **Eat:** cut the pizza into eight slices and watch the monster gobble it up.
+5. **Eat:** swipe across the pizza to cut it (each cut goes the way you swipe), or tap the cutter. Four cuts make eight slices, then the monster gobbles them up.
 
 - **Orders:** each monster wants a sauce and a number of toppings, shown on its order ticket as pictures and dots. Orders start with one kind of topping and grow to three. Every fifth monster throws a pizza party.
 - **Free play:** make any pizza you like.

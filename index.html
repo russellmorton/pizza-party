@@ -166,7 +166,8 @@ button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 .meter-pizza { position: absolute; right: 4px; top: 50%; width: 22px; height: 22px; transform: translateY(-50%); }
 @media (max-width: 520px) { .tool.bin { min-width: 62px; } .tool.bin .ico { width: 38px; height: 38px; } .tool.bin .lbl { font-size: .78rem; } }
 
-.flyer { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 5; }
+.held { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 5; filter: drop-shadow(0 10px 4px rgba(38,49,74,.3)); }
+body.holding .work canvas { cursor: grabbing; }
 #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 30; }
 
 /* pizza party: every fifth monster */
@@ -245,7 +246,7 @@ button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
       <div class="ticket" id="ticket"></div>
     </section>
     <div class="work" id="work">
-      <canvas id="work-canvas" role="img" aria-label="Pizza"></canvas>
+      <canvas id="work-canvas" role="img" aria-label="Pizza" tabindex="0"></canvas>
     </div>
   </main>
 
