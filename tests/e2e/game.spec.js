@@ -12,6 +12,7 @@ test.afterEach(() => expect(errors).toEqual([]));
 const tool = (page, name) => page.locator("#tray").getByRole("button", { name, exact: true });
 const step = page => page.locator("#tray").getAttribute("data-step");
 const canvas = page => page.locator("#work-canvas");
+const chip = (page, name) => page.locator("#steps").getByRole("button", { name, exact: true });
 const binName = { pepperoni: "Pepperonis", mushroom: "Mushrooms", olive: "Olives", pepper: "Green peppers", pineapple: "Pineapples", basil: "Basil leaves" };
 const dotsOn = (page, id) => page.locator(`.line[data-id="${id}"] .dots i.on`);
 
@@ -48,17 +49,19 @@ async function roll(page) {
   }
   await expect.poll(() => step(page)).toBe("sauce");
 }
-// Taps spots on the board pizza with what's in your hand until the step moves on.
-async function tapUntilDone(page, during) {
+// Taps n spots on the board pizza with what's in your hand.
+async function tapSpots(page, n, from = 0) {
   const k = await kitchen(page, "board");
-  for (let i = 0; i < 40 && await step(page) === during; i++) await tap(page, k.board(...spot(i)));
-  await expect.poll(() => step(page)).not.toBe(during);
+  for (let i = from; i < from + n; i++) await tap(page, k.board(...spot(i)));
 }
+// As much sauce and cheese as we like, then on to the toppings by tapping the stage chips.
 async function sauceAndCheese(page, sauce = "tomato") {
   await tool(page, sauce === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
-  await tapUntilDone(page, "sauce");
+  await tapSpots(page, 4);
+  await chip(page, "Cheese").click();
   await tool(page, "Cheese").click();
-  await tapUntilDone(page, "cheese");
+  await tapSpots(page, 3);
+  await chip(page, "Toppings").click();
   await expect.poll(() => step(page)).toBe("top");
 }
 async function decorate(page, id, i) {
@@ -83,10 +86,9 @@ async function cutBoxServe(page) {
   const k = await kitchen(page, "counter");
   await tool(page, "Cutter").click();
   for (const [x, y] of [[.8, 0], [0, .8], [.6, .6], [-.6, .6]]) await tap(page, k.cut(x, y));
-  await expect.poll(() => step(page)).toBe("box");
+  await expect.poll(() => step(page)).toBe("serve");
   await tap(page, k.cut());
   await tap(page, k.box());
-  await expect.poll(() => step(page)).toBe("serve");
   await tap(page, k.box());
   await page.locator("#creature").click({ force: true });
 }
@@ -94,7 +96,7 @@ async function cutBoxServe(page) {
 test("opens with a hungry monster and a ball of dough", async ({ page }) => {
   await expect(page).toHaveTitle("Pizza Party");
   await expect(page.locator("#creature")).toHaveAttribute("aria-label", /hungry monster who wants/);
-  await expect(page.locator("#steps li")).toHaveCount(6);
+  await expect(page.locator("#steps li")).toHaveCount(7);
   await expect(page.locator("#steps li.now")).toContainText("Roll");
   await expect(page.locator("#hint")).toHaveText("Move the rolling pin over the dough");
   await expect(canvas(page)).toBeVisible();
@@ -120,18 +122,52 @@ test.describe("with reduced motion", () => {
     await expect.poll(() => step(page), { timeout: 10_000 }).toBe("roll");
   });
 
-  test("the wrong sauce has to be swapped for the one on the order", async ({ page }) => {
+  test("the wrong sauce has to be swapped before the peel will take the pizza", async ({ page }) => {
     const order = await readOrder(page);
-    const [wrong, right] = order.sauce === "tomato" ? ["Pesto sauce", "Tomato sauce"] : ["Tomato sauce", "Pesto sauce"];
+    const [wrong, right] = order.sauce === "tomato" ? ["pesto", "tomato"] : ["tomato", "pesto"];
     await roll(page);
-    await tool(page, wrong).click();
-    const k = await kitchen(page, "board");
-    for (let i = 0; i < 30; i++) await tap(page, k.board(...spot(i)));
+    await tool(page, wrong === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
+    await tapSpots(page, 1);
     await expect(page.locator("#announce")).toContainText("this monster wants");
-    expect(await step(page)).toBe("sauce");
-    await tool(page, right).click();
-    await tap(page, k.board());
-    await expect.poll(() => step(page)).toBe("cheese");
+    await sauceAndCheese(page, wrong);
+    let n = 0;
+    for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
+    await tool(page, "Peel").click();
+    await tap(page, (await kitchen(page, "board")).board());
+    await expect(page.locator("#announce")).toContainText("sauce");
+    expect(await step(page)).toBe("top");
+    await chip(page, "Sauce").click();                       // back to the sauce, toppings and all
+    await tool(page, right === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
+    await tapSpots(page, 1);
+    await expect(page.locator(".sauce-line.full")).toBeVisible();
+    await chip(page, "Toppings").click();
+    await tool(page, "Peel").click();
+    await tap(page, (await kitchen(page, "board")).board());
+    await expect.poll(() => step(page)).toBe("bake");
+  });
+
+  test("sauce and cheese can be any amount, and you can go back for more", async ({ page }) => {
+    await page.getByRole("button", { name: "Free play" }).click();
+    await roll(page);
+    await expect(tool(page, "Take some off")).toBeDisabled();
+    await tool(page, "Tomato sauce").click();
+    await tapSpots(page, 1);                                  // just one ladle
+    await tool(page, "Take some off").click();               // puts the ladle back
+    await tool(page, "Take some off").click();               // takes the sauce off again
+    await expect(tool(page, "Take some off")).toBeDisabled();
+    await tool(page, "Tomato sauce").click();
+    await tapSpots(page, 2);
+    await chip(page, "Toppings").click();                    // skip the cheese for now
+    await expect(page.locator("#steps li.done")).toHaveCount(2); // rolled and sauced
+    await decorate(page, "olive", 5);
+    await chip(page, "Cheese").click();                      // and come back for it
+    await tool(page, "Cheese").click();
+    await tapSpots(page, 1);
+    await chip(page, "Toppings").click();
+    await expect(page.locator("#steps li.done")).toHaveCount(3);
+    await tool(page, "Peel").click();
+    await tap(page, (await kitchen(page, "board")).board());
+    await expect.poll(() => step(page)).toBe("bake");
   });
 
   test("toppings are picked up and put down by hand, and can be moved", async ({ page }) => {
@@ -183,8 +219,10 @@ test.describe("with reduced motion", () => {
     const enterWhile = async during => { for (let i = 0; i < 40 && await step(page) === during; i++) await enter(); await expect.poll(() => step(page)).not.toBe(during); };
     for (let n = 1; n <= 5; n++) {
       await enterWhile("roll");
-      await pickUp("Tomato sauce"); await enterWhile("sauce");
-      await pickUp("Cheese"); await enterWhile("cheese");
+      await pickUp("Tomato sauce"); await enter(); await enter();
+      await chip(page, "Cheese").press("Enter");
+      await pickUp("Cheese"); await enter(); await enter();
+      await chip(page, "Toppings").press("Enter");
       await pickUp("Olives"); await enter();
       await pickUp("Peel"); await enter(); await enter();               // onto the peel, into the oven
       for (let i = 0; i < 4; i++) { await pickUp("Wood"); await enter(); }
@@ -192,9 +230,8 @@ test.describe("with reduced motion", () => {
       await pickUp("Peel"); await enter(); await enter();               // out of the oven, onto the counter
       await expect.poll(() => step(page)).toBe("cut");
       await pickUp("Cutter"); await enterWhile("cut");
-      await expect.poll(() => step(page)).toBe("box");
-      await enter(); await enter();                                     // pick up the pizza, into the box
       await expect.poll(() => step(page)).toBe("serve");
+      await enter(); await enter();                                     // pick up the pizza, into the box
       await enter();                                                    // pick up the box
       await page.locator("#creature").press("Enter");
       if (n < 5) {

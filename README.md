@@ -3,11 +3,13 @@
 A pizza making game for a four-year-old. A hungry monster comes to the counter with an order, and you make its pizza from start to finish in a little kitchen with three stations: the prep board, a brick oven and the counter. The station you're working at gets the most room. Everything works by tapping: tap a tool or ingredient to pick it up, then tap where it should go.
 
 1. **Roll** the ball of dough flat by moving the rolling pin over it. No clicking needed; on a touch screen, rub it with a finger.
-2. **Sauce:** pick up the tomato or pesto ladle and tap the pizza to pour sauce where you tap. Then pick up the cheese and tap to sprinkle it.
+2. **Sauce** and **cheese:** pick up the tomato or pesto ladle and tap the pizza to pour sauce where you tap, as much or as little as you like. The cheese works the same way. "Take some off" removes the last ladle or handful.
 3. **Toppings:** decorate by hand. Tap a box (pepperoni, mushrooms, olives, green peppers, pineapple or basil) to pick a topping up, then tap the pizza to put it down. The monster counts each one out loud. Tap a topping on the pizza to pick it up and move it, or tap its box to put it back.
 4. **Bake:** pick up the peel, tap the pizza to slide the peel under it, then tap the oven to slide it in. Pick up wood and tap the oven to make the fire hotter, so it bakes faster. The cheese melts and the crust turns golden; it never burns. At the "Ding!", use the peel to take it out and put it on the cutting board.
 5. **Cut:** pick up the cutter and tap the edge of the pizza; each cut runs through the middle from where you tap. Four cuts make eight slices.
 6. **Serve:** tap the pizza to pick it up and tap the box to put it in. Then pick up the box and give it to the monster, who opens it and gobbles up every slice.
+
+The stage chips along the top (Roll, Sauce, Cheese, Toppings, Bake, Cut, Serve) are buttons: tap one to go to that stage at any time, for example back to the sauce after the toppings are on. Each stage's tools only work where the pizza actually is, and the game moves on by itself when a stage is finished (rolled flat, in the oven, out on the board, cut into eight). In Orders mode the peel won't lift the pizza until it has the right sauce and toppings.
 
 Tools stay in your hand until you put them back (tap their button again); a topping or a log is one at a time. With a keyboard, Enter on a tool picks it up and Enter on the kitchen uses it.
 

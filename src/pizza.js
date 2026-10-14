@@ -18,8 +18,6 @@ export const SAUCES = {
 };
 
 export const MAX_TOPPINGS = 24;
-export const SAUCE_DONE = .8;     // fraction of the pizza to cover before the rest fills itself in
-export const CHEESE_DONE = 140;   // shreds of cheese
 export const ROLL_DRAG = 5;       // board widths of rolling to flatten the dough
 export const LOG_HEAT = .3;
 
