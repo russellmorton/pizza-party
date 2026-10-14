@@ -3,7 +3,11 @@ import {
   makeOrder, orderText, countToppings, orderStatus, spotFor, hitTopping, cutFor,
   makeCoverage, dab, coverage, gaps, doughSize, bakeTick, coolTick, addLog, word, named,
 } from "./pizza.js";
-import { TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOven, OVEN_FLOOR, sizeSauce, paintDabs, clearSauce } from "./draw.js";
+import {
+  TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOvenAt, ovenFloor, drawPeel, drawCounter, drawBox, drawTarget,
+  sizeSauce, paintDabs, clearSauce,
+} from "./draw.js";
+import { layout, blendLayout, stationAt, LID } from "./kitchen.js";
 import { monsterSVG, MONSTER_COLOURS, KINDS, INK } from "./monster.js";
 
 const $ = id => document.getElementById(id);
@@ -12,8 +16,8 @@ const pick = a => a[Math.random() * a.length | 0];
 const cap = s => s[0].toUpperCase() + s.slice(1);
 
 // ---------- state ----------
-// Steps: roll → sauce → cheese → top → bake → cut → eat. The step chips group them in five.
-const CHIP = { roll: 0, sauce: 1, cheese: 1, top: 2, bake: 3, cut: 4, eat: 4 };
+// Steps: roll → sauce → cheese → top → bake → cut → box → serve → eat. The step chips group them in six.
+const CHIP = { roll: 0, sauce: 1, cheese: 1, top: 2, bake: 3, cut: 4, box: 5, serve: 5, eat: 5 };
 let mode = "orders", muted = false;
 let served = [];
 let customer = newCustomer(), order = makeOrder(0);
@@ -21,7 +25,10 @@ let P = freshPizza();
 let busy = false;      // a step is finishing and will move on by itself
 
 function freshPizza() {
-  return { step: "roll", roll: 0, sauce: null, dabs: [], cov: makeCoverage(), cheese: [], toppings: [], bake: 0, heat: 0, cuts: [], eaten: Array(8).fill(false) };
+  return {
+    step: "roll", where: "board", roll: 0, sauce: null, dabs: [], cov: makeCoverage(), cheese: [], toppings: [],
+    bake: 0, heat: 0, cuts: [], eaten: Array(8).fill(false), box: "counter", lid: 0, lidTo: 0,
+  };
 }
 function newCustomer(prev) {
   let c;
@@ -77,7 +84,7 @@ const sfx = {
   yay: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .11, .35, "triangle", .16)); tone(1568, .5, .5, "sine", .08); },
 };
 const every = (fn, ms) => { let last = 0; return () => { const n = performance.now(); if (n - last > ms) { last = n; fn(); } }; };
-const rollSound = every(sfx.roll, 160), squishSound = every(sfx.squish, 110), sprinkleSound = every(sfx.sprinkle, 120);
+const rollSound = every(sfx.roll, 160);
 
 function say(text, queue = false) {
   $("announce").textContent = text;
@@ -103,10 +110,11 @@ const ICON = {
   undo: `<svg viewBox="0 0 64 64" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 26 h22 a12 12 0 0 1 0 24 h-14"/><path d="M28 16 l-10 10 l10 10"/></svg>`,
   oven: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M6 58 V32 C6 8 58 8 58 32 V58Z" fill="#d9694a"/><path d="M18 58 V42 C18 28 46 28 46 42 V58Z" fill="#3a1a10"/></g><path d="M26 56 q-2 -10 6 -16 q-1 7 4 9 q2 -4 1 -8 q6 6 2 15z" fill="#ffb02e"/></svg>`,
   log: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M8 26 h40 a8 10 0 0 1 0 20 h-40 z" fill="#8a5232"/><ellipse cx="10" cy="36" rx="8" ry="10" fill="#e3b77e"/></g><ellipse cx="10" cy="36" rx="3.5" ry="4.5" fill="none" stroke="#b07a46" stroke-width="2"/><path d="M22 31 h18 M26 41 h16" stroke="#5e341d" stroke-width="2.5" stroke-linecap="round"/><path d="M46 20 q-3 -7 3 -12 q0 5 4 6 q1 -3 0 -6 q6 6 1 12z" fill="#ffb02e" stroke="#e0661a" stroke-width="2"/></svg>`,
+  peel: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-linecap="round"><path d="M36 36 L58 58" stroke-width="11"/><path d="M36 36 L58 58" stroke="#b8743c" stroke-width="6"/><circle cx="26" cy="26" r="21" fill="#e9c48f" stroke-width="3"/></g></svg>`,
   cutter: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linecap="round"><path d="M30 34 L54 8" stroke-width="10"/><path d="M30 34 L54 8" stroke="#ff5a5f" stroke-width="5"/><circle cx="24" cy="40" r="18" fill="#dfe3ec"/><circle cx="24" cy="40" r="4" fill="${INK}"/></g></svg>`,
 };
 
-// Paints a topping into a small <canvas>, for the bins, the order ticket and flying pieces.
+// Paints a topping into a small <canvas>, for the bins, the order ticket and your hand.
 function toppingCanvas(cv, id, cssSize, scale = .38, rot = id === "basil" ? -.5 : 0) {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   cv.width = cv.height = Math.round(cssSize * dpr);
@@ -159,7 +167,8 @@ function renderShelf() {
 }
 function hop(cls = "happy") { creatureEl.classList.remove(cls); void creatureEl.offsetWidth; creatureEl.classList.add(cls); }
 
-// ---------- step chips + tray ----------
+
+// ---------- step chips, hints + tray ----------
 const tray = $("tray");
 function renderSteps() {
   document.querySelectorAll("#steps li").forEach((li, i) => {
@@ -169,63 +178,94 @@ function renderSteps() {
   });
 }
 const tool = (id, label, icon, cls = "") => `<button class="tool ${cls}" id="tool-${id}" aria-label="${label}"><span class="ico">${icon}</span><span class="lbl">${label}</span></button>`;
+const meter = `<div class="meter" role="progressbar" aria-label="Baking" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill"></div><span class="meter-pizza">${ICON.oven}</span></div>`;
 function renderTray() {
   const st = P.step;
   let h = "";
-  if (st === "roll") h = tool("roll", "Roll", ICON.pin, "pulse");
-  else if (st === "sauce") h = Object.entries(SAUCES).map(([k, s]) => tool(`sauce-${k}`, `${cap(s.name)} sauce`, ICON.ladle(s.css), order?.sauce === k ? "pulse" : "")).join("");
-  else if (st === "cheese") h = tool("cheese", "Cheese", ICON.cheese, "pulse");
-  else if (st === "top") h = `<div class="bins">${TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(t.many)}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${cap(t.one)}</span></button>`).join("")}</div>`
-    + `<div class="actions">${tool("undo", "Take one off", ICON.undo, "small")}${tool("bake", "Bake it!", ICON.oven, "go pulse")}</div>`;
-  else if (st === "bake") h = tool("log", "Add wood", ICON.log, "pulse") + `<div class="meter" role="progressbar" aria-label="Baking" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill"></div><span class="meter-pizza">${ICON.oven}</span></div>`;
-  else if (st === "cut") h = tool("cut", "Cut", ICON.cutter, "pulse");
-  tray.innerHTML = h;
+  if (st === "roll") h = tool("roll", "Roll", ICON.pin);
+  else if (st === "sauce") h = Object.entries(SAUCES).map(([k, s]) => tool(`ladle-${k}`, `${cap(s.name)} sauce`, ICON.ladle(s.css))).join("");
+  else if (st === "cheese") h = tool("cheese", "Cheese", ICON.cheese);
+  else if (st === "top") h = TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(t.many)}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${cap(t.one)}</span></button>`).join("")
+    + tool("undo", "Take one off", ICON.undo, "small") + tool("peel", "Peel", ICON.peel, "go");
+  else if (st === "bake") h = tool("log", "Wood", ICON.log) + meter + tool("peel", "Peel", ICON.peel, "go");
+  else if (st === "cut") h = tool("cutter", "Cutter", ICON.cutter);
+  tray.innerHTML = `<p class="hint" id="hint"></p><div class="tools">${h}</div>`;
   tray.dataset.step = st;
   tray.querySelectorAll(".bin").forEach(b => {
     toppingCanvas(b.querySelector("canvas"), b.dataset.id, 46);
     b.addEventListener("click", e => tapBin(b.dataset.id, b, e.detail === 0));
   });
-  const on = (id, fn) => { const el = $(`tool-${id}`); if (el) el.addEventListener("click", () => { audio(); fn(el); }); };
+  const on = (id, fn) => { const el = $(`tool-${id}`); if (el) el.addEventListener("click", e => { audio(); fn(el, e.detail === 0); }); };
   on("roll", rollButton);
-  for (const k of Object.keys(SAUCES)) on(`sauce-${k}`, () => ladle(k));
-  on("cheese", grate);
-  on("undo", () => held ? putBack() : P.toppings.length && removeTopping(P.toppings.length - 1));
-  on("bake", startBake);
-  on("log", stoke);
-  on("cut", () => cutOnce());
+  for (const k of Object.keys(SAUCES)) on(`ladle-${k}`, (el, kb) => toggleTool("ladle", k, el, kb));
+  on("cheese", (el, kb) => toggleTool("cheese", null, el, kb));
+  on("undo", () => held ? putAway() : P.toppings.length && removeTopping(P.toppings.length - 1));
+  on("peel", (el, kb) => toggleTool("peel", null, el, kb));
+  on("log", (el, kb) => toggleTool("log", null, el, kb));
+  on("cutter", (el, kb) => toggleTool("cutter", null, el, kb));
   updateTray();
 }
+// The tools that make sense at each step; anything else in your hand is put away.
+const TOOLS = { roll: [], sauce: ["ladle"], cheese: ["cheese"], top: ["topping", "peel"], bake: ["peel", "log"], cut: ["cutter"], box: ["pizza"], serve: ["box"], eat: [] };
 function updateTray() {
-  if (P.step === "sauce") for (const k of Object.keys(SAUCES)) $(`tool-sauce-${k}`)?.setAttribute("aria-pressed", P.sauce === k);
-  if (P.step === "top") {
-    $("tool-bake").hidden = !readyToBake();
-    $("tool-undo").disabled = !P.toppings.length && !held;
-    tray.querySelectorAll(".bin").forEach(b => b.setAttribute("aria-pressed", held?.id === b.dataset.id));
-  }
+  tray.querySelectorAll(".tool[id^=tool-]").forEach(b => {
+    const [, kind, id] = b.id.split("-");
+    if (["ladle", "cheese", "peel", "log", "cutter"].includes(kind)) b.setAttribute("aria-pressed", held?.kind === kind && (!id || held.id === id));
+  });
+  tray.querySelectorAll(".bin").forEach(b => b.setAttribute("aria-pressed", held?.kind === "topping" && held.id === b.dataset.id));
+  if (P.step === "top") $("tool-undo").disabled = !P.toppings.length && !held;
+  const peel = $("tool-peel");
+  if (peel) peel.classList.toggle("pulse", !held && (P.step === "top" ? readyToBake() : P.where === "oven" && P.bake >= 1));
+  const hint = $("hint");
+  if (hint) hint.textContent = hintText();
+  creatureEl.classList.toggle("target", held?.kind === "box");
 }
 const readyToBake = () => !order || orderStatus(order, P.toppings).done;
+function hintText() {
+  const k = held?.kind;
+  switch (P.step) {
+    case "roll": return pointerKind === "touch" ? "Rub the rolling pin over the dough" : "Move the rolling pin over the dough";
+    case "sauce": return k === "ladle" ? "Tap the pizza to pour on the sauce" : "Pick up a ladle of sauce";
+    case "cheese": return k === "cheese" ? "Tap the pizza to sprinkle the cheese" : "Pick up the cheese";
+    case "top":
+      if (k === "peel") return "Tap the pizza to slide the peel under it";
+      if (k === "topping") return "Tap the pizza to put it down";
+      return readyToBake() ? "Ready? Pick up the peel" : "Pick up a topping";
+    case "bake":
+      if (P.where === "peel") return P.bake >= 1 ? "Put it on the cutting board" : "Tap the oven to slide it in";
+      if (P.bake >= 1) return k === "peel" ? "Tap the oven to take it out" : "Ding! Pick up the peel";
+      return k === "log" ? "Tap the oven to add the wood" : "Add wood to make the fire hotter";
+    case "cut": return k === "cutter" ? "Tap the edge of the pizza to cut it" : "Pick up the cutter";
+    case "box": return k === "pizza" ? "Tap the box to put it in" : "Tap the pizza to pick it up";
+    case "serve": return k === "box" ? "Give it to the monster!" : "Tap the box to pick it up";
+  }
+  return "";
+}
 
 const workLabel = {
-  roll: "A ball of dough on the board. Roll it flat.",
-  sauce: "Pizza dough. Spread the sauce.",
-  cheese: "Pizza with sauce. Sprinkle the cheese.",
-  top: "Pizza with cheese. Tap a topping box to pick one up, then tap the pizza to put it down.",
-  bake: "The pizza is in the oven.",
-  cut: "A baked pizza. Cut it into slices.",
+  roll: "The kitchen. A ball of dough on the board: roll it flat.",
+  sauce: "The kitchen. Pizza dough on the board: pour on the sauce.",
+  cheese: "The kitchen. Pizza with sauce on the board: sprinkle the cheese.",
+  top: "The kitchen. Pick up a topping, then tap the pizza to put it down. Press Enter to put down what you're holding.",
+  bake: "The kitchen. The oven is ready for the pizza.",
+  cut: "The kitchen. A baked pizza on the cutting board: cut it into slices.",
+  box: "The kitchen. Eight slices on the cutting board, and an open pizza box.",
+  serve: "The kitchen. A pizza box, ready for the monster.",
   eat: "The monster is eating the pizza.",
 };
 function setStep(step) {
   P.step = step;
   busy = false;
-  if (step !== "top") putBack(true);
+  if (held && !TOOLS[step].includes(held.kind)) putAway(true);
   renderSteps();
   renderTray();
   cv.setAttribute("aria-label", workLabel[step]);
-  if (step === "sauce") say("Nice and flat! Now spread the sauce.");
-  if (step === "cheese") say("Now sprinkle on the cheese!");
+  if (step === "sauce") say("Nice and flat! Now pick up a ladle and pour on the sauce.");
+  if (step === "cheese") say("Now the cheese!");
   if (step === "top") say(order ? `Now the toppings! ${cap(orderText(order))}. Pick one up and put it on the pizza.` : "Now decorate your pizza! Pick up a topping and put it on the pizza.");
-  if (step === "bake") say("Into the oven! Add wood to make the fire hot.");
-  if (step === "cut") say("Ding! It's ready. Swipe across the pizza to cut it into slices.");
+  if (step === "cut") say("Now cut it into slices! Pick up the cutter.");
+  if (step === "box") say("Eight slices! Now put it in the box.");
+  if (step === "serve") say("Give the box to the monster!");
 }
 function finishStep(next, delay = 800) {
   if (busy) return;
@@ -234,50 +274,67 @@ function finishStep(next, delay = 800) {
   setTimeout(() => setStep(next), reduce ? 150 : delay);
 }
 
-// ---------- the work area ----------
+// ---------- the kitchen ----------
+// One canvas holds the prep board, the oven and the counter. The pizza moves
+// between them: board → peel → oven → peel → cutting board → box → monster.
 const wrap = $("work"), cv = $("work-canvas"), ctx = cv.getContext("2d");
 const sauceCv = document.createElement("canvas");
-let s = 300, dpr = 1;
+let W = 300, H = 300, dpr = 1;
+let focus = "board", L = layout(W, H), Lfrom = null, Lt0 = 0;
 function fit() {
   const r = wrap.getBoundingClientRect();
-  s = Math.max(120, Math.floor(Math.min(r.width, r.height)));
+  W = Math.max(160, Math.floor(r.width)); H = Math.max(160, Math.floor(r.height));
   dpr = Math.min(devicePixelRatio || 1, 2);
-  cv.style.width = cv.style.height = s + "px";
-  cv.width = cv.height = Math.round(s * dpr);
-  sizeSauce(sauceCv, sauceR(), dpr);
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  L = layout(W, H, focus); Lfrom = null;
+  // sauce is painted at the size the pizza has on the big board
+  sizeSauce(sauceCv, layout(W, H, "board").board.r * .92 * .84, dpr);
   if (P.sauce) paintDabs(sauceCv, P.dabs, P.sauce);
+  lastSig = null;
 }
 new ResizeObserver(fit).observe(wrap);
 
-const boardR = () => s * .47;
-const pizzaR = () => boardR() * .92;              // fully rolled
-const sauceR = () => pizzaR() * .84;
-// Pointer position on the pizza, in sauce-radius units.
-function toU(e) {
-  const r = cv.getBoundingClientRect();
-  return { x: (e.clientX - r.left - s / 2) / sauceR(), y: (e.clientY - r.top - s / 2) / sauceR() };
+function focusFor() {
+  if (["roll", "sauce", "cheese", "top"].includes(P.step)) return "board";
+  if (P.step === "bake") return P.where === "peel" && P.bake >= 1 ? "counter" : "oven";
+  return "counter";
+}
+function setFocus(f) {
+  if (f === focus) return;
+  focus = f;
+  if (reduce) { L = layout(W, H, f); return; }
+  Lfrom = L; Lt0 = performance.now();
 }
 
+// Where the pizza is drawn, and how big. Null while it's in your hand.
+function pizzaAt() {
+  if (P.where === "board") return { x: L.board.x, y: L.board.y, R: L.board.r * .92 * doughSize(P.roll), sq: 1 };
+  if (P.where === "oven") { const f = ovenFloor(L.oven); return { x: f.x, y: f.y, R: f.R, sq: f.squash }; }
+  if (P.where === "counter") return { x: L.counter.cut.x, y: L.counter.cut.y, R: L.counter.cut.r * .9, sq: 1 };
+  if (P.where === "box" && P.box !== "hand") { const b = L.counter.box; return { x: b.x + b.s / 2, y: b.y + b.s / 2, R: b.s * .42, sq: 1 }; }
+  return null;
+}
+// A point on the canvas in pizza units (1 = the edge of the sauce).
+function toU(p, g = pizzaAt()) { return { x: (p.x - g.x) / (g.R * .84), y: (p.y - g.y) / (g.R * .84 * g.sq) }; }
+function local(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
 // animation bits that aren't part of the pizza itself
-let pinY = null, rollAnim = null, cutAnim = null, oven = null, sparks = [], puffs = [];
+let pinY = null, rollAnim = null, cutAnim = null, sparks = [], puffs = [];
 
 let last = performance.now(), lastSig = null;
 function frame(now) {
   const dt = Math.min(.1, (now - last) / 1000); last = now;
-  // Only redraw when something has changed or is moving: a big canvas is costly to repaint.
-  const sig = [s, dpr, P.step, P.roll, pinY, P.dabs.length, P.sauce, P.cheese.length, P.toppings.length,
-    P.toppings.reduce((a, t) => a + t.x + t.y * 3, 0), P.cuts.join(), P.eaten.join()].join("|");
-  const moving = rollAnim || cutAnim || puffs.length || (P.step === "bake" && oven);
-  if (!moving && sig === lastSig) { requestAnimationFrame(frame); return; }
-  lastSig = moving ? null : sig;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, s, s);
-  const c = s / 2;
-
+  setFocus(focusFor());
+  if (Lfrom) {
+    const t = Math.min(1, (now - Lt0) / 700), e = t < .5 ? 2 * t * t : 1 - (2 - 2 * t) ** 2 / 2;
+    const to = layout(W, H, focus);
+    L = blendLayout(Lfrom, to, e);
+    if (t >= 1) { L = to; Lfrom = null; }
+  }
   if (rollAnim) {
-    const p = Math.min(1, (now - rollAnim.t0) / rollAnim.ms);
-    const R = pizzaR() * doughSize(P.roll);
-    pinY = c - R * .9 + R * 1.8 * p;
+    const p = Math.min(1, (now - rollAnim.t0) / rollAnim.ms), R = L.board.r * .92 * doughSize(P.roll);
+    pinY = L.board.y - R * .9 + R * 1.8 * p;
     P.roll = rollAnim.from + (rollAnim.to - rollAnim.from) * p;
     if (p >= 1) { rollAnim = null; pinY = null; afterRoll(); }
   }
@@ -285,23 +342,236 @@ function frame(now) {
     cutAnim.p = Math.min(1, (now - cutAnim.t0) / cutAnim.ms);
     if (cutAnim.p >= 1) { const done = cutAnim.done; cutAnim = null; done(); }
   }
-
-  if (P.step === "bake" && oven) {
-    bakeFrame(now, dt);
-  } else {
-    drawBoard(ctx, c, c, boardR());
-    const R = pizzaR() * doughSize(P.roll);
-    drawPizza(ctx, c, c, R, { ...P, sauceImg: sauceCv, cutAnim });
-    if (P.step === "roll") drawPin(ctx, c, pinY ?? c + R * .55, boardR() * 1.5);
-  }
-  // little puffs where toppings were taken off
+  bakeFrame(dt);
+  if (P.lid !== P.lidTo) P.lid = P.lidTo > P.lid ? Math.min(P.lidTo, P.lid + dt * 2.2) : Math.max(P.lidTo, P.lid - dt * 2.2);
   puffs = puffs.filter(p => now - p.t < 400);
+
+  // Only redraw when something has changed or is moving: a big canvas is costly to repaint.
+  const ovenLive = focus === "oven" || P.where === "oven" || P.heat > 0 || sparks.length > 0;
+  const moving = Lfrom || rollAnim || cutAnim || puffs.length || ovenLive || P.lid !== P.lidTo;
+  const sig = [W, H, dpr, P.step, P.where, P.box, P.roll, pinY, P.dabs.length, P.sauce, P.cheese.length, P.toppings.length,
+    P.toppings.reduce((a, t) => a + t.x + t.y * 3, 0), P.cuts.join(), P.eaten.join(), held?.kind].join("|");
+  if (moving || sig !== lastSig) {
+    lastSig = moving ? null : sig;
+    draw(now, ovenLive);
+  }
+  requestAnimationFrame(frame);
+}
+
+function draw(now, ovenLive) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  drawBoard(ctx, L.board.x, L.board.y, L.board.r);
+  drawOvenAt(ctx, L.oven, ovenLive ? now / 1000 : 0, P.heat, sparks);
+  drawCounter(ctx, L.counter);
+  const cut = L.counter.cut;
+  drawBoard(ctx, cut.x, cut.y, cut.r);
+  const g = pizzaAt(), pz = { ...P, sauceImg: sauceCv, cutAnim };
+  const pizzaHere = () => {
+    ctx.save();
+    ctx.translate(g.x, g.y); ctx.scale(1, g.sq); ctx.translate(-g.x, -g.y);
+    drawPizza(ctx, g.x, g.y, g.R, pz);
+    ctx.restore();
+  };
+  if (P.box !== "hand") drawBox(ctx, L.counter.box, P.lid, P.where === "box" ? pizzaHere : null, LID);
+  if (g && P.where !== "box") pizzaHere();
+  if (P.step === "roll") drawPin(ctx, L.board.x, pinY ?? L.board.y + L.board.r * .5, L.board.r * 1.5);
+  if (P.where === "oven" && P.bake >= 1) {
+    const o = L.oven;
+    ctx.fillStyle = "#fff6c9"; ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineJoin = "round";
+    ctx.font = `800 ${o.s * .14}px "Baloo 2", system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.strokeText("Ding!", o.x + o.s / 2, o.y + o.s * .36); ctx.fillText("Ding!", o.x + o.s / 2, o.y + o.s * .36);
+  }
+  const target = targetShape();
+  if (target) drawTarget(ctx, target);
   for (const p of puffs) {
     const k = (now - p.t) / 400;
     ctx.strokeStyle = `rgba(255,255,255,${1 - k})`; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(c + p.x * sauceR(), c + p.y * sauceR(), sauceR() * (.1 + .15 * k), 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + k), 0, Math.PI * 2); ctx.stroke();
   }
-  requestAnimationFrame(frame);
+}
+
+// The dashed ring showing where the thing in your hand can go.
+function targetShape() {
+  if (!held) return null;
+  const k = held.kind, g = pizzaAt(), o = L.oven, b = L.counter.box;
+  const pizzaRing = g && { x: g.x, y: g.y, r: g.R * 1.04 };
+  const mouth = { x: o.x + o.s * .2, y: o.y + o.s * .42, w: o.s * .6, h: o.s * .4 };
+  if (["topping", "ladle", "cheese"].includes(k)) return P.where === "board" ? pizzaRing : null;
+  if (k === "peel") {
+    if (P.where === "board") return P.step === "top" && readyToBake() ? pizzaRing : null;
+    if (P.where === "peel") return P.bake >= 1 ? { ...L.counter.cut, r: L.counter.cut.r * 1.02 } : mouth;
+    return P.bake >= 1 ? mouth : null;
+  }
+  if (k === "log") return mouth;
+  if (k === "cutter") return P.where === "counter" ? pizzaRing : null;
+  if (k === "pizza") return { x: b.x - 4, y: b.y - b.s * LID - 4, w: b.s + 8, h: b.s * (1 + LID) + 8 };
+  return null;
+}
+
+// ---------- your hand ----------
+// Tap something to pick it up and it comes with you; tap where it should go to use it.
+// Tools (ladles, cheese, peel, cutter) stay in your hand until you put them back;
+// a topping or a log is one piece at a time.
+let held = null;                       // { kind, id, rot }
+let pointerKind = "mouse";
+const heldEl = document.createElement("div");
+heldEl.className = "held"; heldEl.hidden = true; heldEl.setAttribute("aria-hidden", "true");
+document.body.append(heldEl);
+const lastPointer = { x: 0, y: 0 };
+addEventListener("pointerdown", e => { pointerKind = e.pointerType; lastPointer.x = e.clientX; lastPointer.y = e.clientY; }, true);
+addEventListener("pointermove", e => {
+  lastPointer.x = e.clientX; lastPointer.y = e.clientY;
+  if (held && e.pointerType !== "touch") moveHeld(e.clientX, e.clientY);
+});
+function moveHeld(x, y) { heldEl.style.transform = `translate(${x}px,${y}px) rotate(${held?.rot || 0}rad)`; }
+
+function svgHeld(svg, size) {
+  heldEl.innerHTML = `<div style="width:${size}px;height:${size}px">${svg}</div>`;
+  return [size / 2, size / 2];
+}
+function canvasHeld(w, h, paint) {
+  const c = document.createElement("canvas"), d = Math.min(devicePixelRatio || 1, 2);
+  c.width = w * d; c.height = h * d; c.style.width = w + "px"; c.style.height = h + "px";
+  const x = c.getContext("2d"); x.setTransform(d, 0, 0, d, 0, 0);
+  paint(x);
+  heldEl.replaceChildren(c);
+}
+// Draws what's in your hand. Returns the point that sits under the pointer.
+function renderHeld() {
+  const k = held.kind, pr = Math.max(34, Math.min(76, L.counter.cut.r * .8));
+  const ts = size => Math.round(Math.max(72, Math.min(140, size))); // tools scale with the kitchen
+  let c;
+  if (k === "topping") {
+    const r = L.board.r * .92 * .84 * TOPPING_SIZE, size = Math.ceil(r / .38);
+    const cnv = document.createElement("canvas"); toppingCanvas(cnv, held.id, size, .38, 0); heldEl.replaceChildren(cnv);
+    c = [size / 2, size / 2];
+  } else if (k === "ladle") c = svgHeld(ICON.ladle(SAUCES[held.id].css), ts(L.board.r * .42));
+  else if (k === "cheese") c = svgHeld(ICON.cheese, ts(L.board.r * .36));
+  else if (k === "log") c = svgHeld(ICON.log, ts(L.oven.s * .3));
+  else if (k === "cutter") c = svgHeld(ICON.cutter, ts(L.counter.cut.r * .55));
+  else if (k === "peel") {
+    const r = pr * 1.12;
+    canvasHeld(r * 2.6, r * 2.6, x => { drawPeel(x, r * 1.05, r * 1.05, r); if (P.where === "peel") drawPizza(x, r * 1.05, r * 1.05, pr, { ...P, sauceImg: sauceCv }); });
+    c = [r * 1.05, r * 1.05];
+  } else if (k === "pizza") {
+    canvasHeld(pr * 2.3, pr * 2.3, x => drawPizza(x, pr * 1.15, pr * 1.15, pr, { ...P, sauceImg: sauceCv }));
+    c = [pr * 1.15, pr * 1.15];
+  } else if (k === "box") {
+    const bs = pr * 1.6;
+    canvasHeld(bs * 1.2, bs * 1.2, x => drawBox(x, { x: bs * .08, y: bs * .08, s: bs }, 1, null, LID));
+    c = [bs * .6, bs * .6];
+  }
+  heldEl.style.margin = `${-c[1]}px 0 0 ${-c[0]}px`;
+}
+// Picks something up. (x, y) is where it appears on screen.
+function hold(kind, id, x, y, rot = 0) {
+  held = { kind, id, rot };
+  renderHeld();
+  heldEl.hidden = false;
+  document.body.classList.add("holding");
+  moveHeld(x, y);
+  heldEl.animate([{ scale: .6 }, { scale: 1.15 }, { scale: 1 }], { duration: reduce ? 0 : 220 });
+  lastSig = null;
+  updateTray();
+}
+function putAway(quiet) {
+  if (!held) return;
+  held = null;
+  heldEl.hidden = true;
+  document.body.classList.remove("holding");
+  lastSig = null;
+  if (!quiet) { sfx.pop(); updateTray(); }
+}
+// Where something picked up from the tray first appears: under a mouse, or lifted out of its button.
+function fromButton(btn, byKeyboard) {
+  const r = btn.getBoundingClientRect();
+  const follow = !byKeyboard && (pointerKind === "mouse" || pointerKind === "pen");
+  return follow ? [lastPointer.x, lastPointer.y] : [r.left + r.width / 2, r.top + r.height * .25];
+}
+const carrying = () => held && (held.kind === "pizza" || held.kind === "box" || (held.kind === "peel" && P.where === "peel"));
+function toggleTool(kind, id, btn, byKeyboard) {
+  if (busy) return;
+  if (carrying()) return say(P.where === "peel" ? "Put the pizza down first!" : "Put that down first!");
+  if (held?.kind === kind && (held.id ?? null) === id) return putAway();
+  hold(kind, id, ...fromButton(btn, byKeyboard));
+  tone(600, 0, .1, "sine", .12, 900);
+  if (kind === "ladle") say(`${cap(SAUCES[id].name)} sauce`);
+}
+
+// ---------- tapping in the kitchen ----------
+let press = null, lastRoll = null;
+cv.addEventListener("pointerdown", e => {
+  audio();
+  press = { x: e.clientX, y: e.clientY, moved: 0 };
+  if (e.pointerType === "touch") { cv.setPointerCapture(e.pointerId); lastRoll = local(e); }
+});
+cv.addEventListener("pointermove", e => {
+  if (press) press.moved += Math.hypot(e.clientX - press.x, e.clientY - press.y), press.x = e.clientX, press.y = e.clientY;
+  // rolling needs no click: just move the pin over the dough (or rub it with a finger)
+  if (P.step !== "roll" || rollAnim || busy) return;
+  const p = local(e);
+  if (Math.hypot(p.x - L.board.x, p.y - L.board.y) > L.board.r) { pinY = null; lastRoll = null; return; }
+  if (lastRoll) {
+    const d = Math.hypot(p.x - lastRoll.x, p.y - lastRoll.y);
+    if (d > 0) { rollBy(d / (L.board.r * 2 * ROLL_DRAG)); rollSound(); }
+  }
+  pinY = p.y; lastRoll = p;
+});
+cv.addEventListener("pointerleave", () => { pinY = null; lastRoll = null; });
+cv.addEventListener("pointerup", e => {
+  if (press && press.moved < 14) tapAt(local(e), e);
+  press = null;
+  if (e.pointerType === "touch") lastRoll = null;
+});
+cv.addEventListener("pointercancel", () => { press = null; lastRoll = null; });
+cv.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); audio(); keyUse(); }
+});
+
+function tapAt(p, e) {
+  if (busy) return;
+  const at = stationAt(L, p.x, p.y), g = pizzaAt();
+  const onPizza = !!g && Math.hypot(p.x - g.x, (p.y - g.y) / g.sq) <= g.R;
+  const u = g ? toU(p, g) : null;
+  const onBoardPizza = onPizza && P.where === "board";
+  switch (held?.kind) {
+    case "ladle": return onBoardPizza ? pour(u) : say("Pour it on the pizza!");
+    case "cheese": return onBoardPizza ? sprinkleAt(u) : say("Sprinkle it on the pizza!");
+    case "topping": return onBoardPizza && Math.hypot(u.x, u.y) < .95 ? putDown(u) : say("Put it on the pizza!");
+    case "peel": return usePeel(at, onPizza);
+    case "log": return at === "oven" ? throwLog() : say("Put the wood in the oven!");
+    case "cutter": return onPizza && P.where === "counter" ? cutOnce(p.x - g.x, p.y - g.y) : say("Cut the pizza on the cutting board!");
+    case "pizza": return at === "box" ? boxIt() : at === "cut" ? setDownPizza() : say("Put it in the box!");
+    case "box": return at === "box" ? setDownBox() : say("Give it to the monster!");
+  }
+  if (P.step === "top" && onBoardPizza) {
+    const i = hitTopping(P.toppings, u.x, u.y);
+    if (i < 0) return say("Tap a topping down below to pick it up!");
+    const [t] = P.toppings.splice(i, 1);
+    hold("topping", t.id, e.clientX, e.clientY - (e.pointerType === "touch" ? 30 : 0), t.rot);
+    sfx.pop();
+    return updateTicket();
+  }
+  if (P.step === "box" && onPizza && P.where === "counter") return pickUpPizza(e.clientX, e.clientY);
+  if (P.step === "serve" && at === "box") return pickUpBox(e.clientX, e.clientY);
+  say(hintText());
+}
+// Enter on the kitchen does the obvious thing with what you're holding.
+function keyUse() {
+  if (busy) return;
+  const k = held?.kind, r = cv.getBoundingClientRect();
+  if (P.step === "roll") return rollButton();
+  if (k === "ladle") { const open = gaps(P.cov); return pour(open.length ? pick(open) : { x: 0, y: 0 }); }
+  if (k === "cheese") { const a = Math.random() * 7, d = Math.random() * .6; return sprinkleAt({ x: Math.cos(a) * d, y: Math.sin(a) * d }); }
+  if (k === "topping") return putDown(spotFor(P.toppings));
+  if (k === "peel") return usePeel(P.where === "peel" ? (P.bake >= 1 ? "cut" : "oven") : P.where === "oven" ? "oven" : "board", true);
+  if (k === "log") return throwLog();
+  if (k === "cutter") { const n = [0, 2, 1, 3].find(n => !P.cuts.includes(n)); return n === undefined ? undefined : cutOnce(Math.cos(n * Math.PI / 4), Math.sin(n * Math.PI / 4)); }
+  if (k === "pizza") return boxIt();
+  if (!held && P.step === "box") return pickUpPizza(r.left + L.counter.cut.x, r.top + L.counter.cut.y);
+  if (!held && P.step === "serve") return pickUpBox(r.left + L.counter.box.x, r.top + L.counter.box.y);
+  say(hintText());
 }
 
 // ---------- step 1: roll the dough ----------
@@ -325,26 +595,23 @@ function chooseSauce(k) {
   if (P.sauce === k) return;
   P.sauce = k;
   paintDabs(sauceCv, P.dabs, k); // recolour what's already spread
-  updateTray(); updateTicket();
+  updateTicket();
 }
 function addDab(x, y, r = .2) {
   if (Math.hypot(x, y) > 1.15) return;
-  if (!P.sauce) chooseSauce(order?.sauce || "tomato");
   const sp = Array.from({ length: 2 }, () => [(Math.random() - .5) * r, (Math.random() - .5) * r, r * (.06 + Math.random() * .06)]);
   const d = { x, y, r, sp };
   P.dabs.push(d);
   paintDabs(sauceCv, [d], P.sauce);
   dab(P.cov, x, y, r);
 }
-function ladle(k) {
+// A ladle of sauce lands where you tap and swirls out.
+function pour(u) {
   if (P.step !== "sauce" || busy) return;
-  chooseSauce(k);
-  const open = gaps(P.cov);
-  const at = P.dabs.length ? pick(open.length ? open : P.cov.cells) : { x: 0, y: 0 };
+  chooseSauce(held.id);
   sfx.squish();
-  // a swirl of sauce around where the ladle lands
-  const pts = [[0, 0], ...Array.from({ length: 7 }, (_, i) => [Math.cos(i * .9) * .08 * (i + 1), Math.sin(i * .9) * .08 * (i + 1)])];
-  pts.forEach(([dx, dy], i) => setTimeout(() => { addDab(at.x + dx, at.y + dy, .22); if (i === pts.length - 1) checkSauce(); }, reduce ? 0 : i * 35));
+  const pts = [[0, 0], ...Array.from({ length: 9 }, (_, i) => [Math.cos(i * .9) * .045 * (i + 1), Math.sin(i * .9) * .045 * (i + 1)])];
+  pts.forEach(([dx, dy], i) => setTimeout(() => { if (P.step === "sauce") { addDab(u.x + dx, u.y + dy, .2); if (i === pts.length - 1) checkSauce(); } }, reduce ? 0 : i * 30));
 }
 function checkSauce() {
   updateTicket();
@@ -353,7 +620,7 @@ function checkSauce() {
     if (P.wrongSaid !== P.sauce) {
       P.wrongSaid = P.sauce;
       const want = SAUCES[order.sauce];
-      say(`Hmm, this monster wants ${want.name} sauce. Tap the ${want.colour} sauce.`);
+      say(`Hmm, this monster wants ${want.name} sauce. Pick up the ${want.colour} sauce.`);
     }
     return;
   }
@@ -371,65 +638,31 @@ function sprinkle(x, y, n, spread) {
   }
   if (P.cheese.length >= CHEESE_DONE) finishStep("top");
 }
-function grate() {
+// A handful of cheese falls where you tap.
+function sprinkleAt(u) {
   if (P.step !== "cheese" || busy) return;
-  for (let i = 0; i < 10; i++) setTimeout(() => { if (P.step === "cheese") { sprinkle(0, 0, 6, 1); sfx.sprinkle(); } }, reduce ? 0 : i * 40);
+  sfx.sprinkle();
+  for (let i = 0; i < 5; i++) setTimeout(() => { if (P.step === "cheese") sprinkle(u.x, u.y, 8, .42); }, reduce ? 0 : i * 45);
 }
 
 // ---------- step 3: toppings ----------
-// Tap a box to pick a topping up, then tap the pizza to put it down where you like.
-// Tap a topping on the pizza to pick it up again and move it.
-let held = null;                       // the topping in your hand: { id, rot }
-let pointerKind = "mouse";
-const heldEl = document.createElement("canvas");
-heldEl.className = "held"; heldEl.hidden = true; heldEl.setAttribute("aria-hidden", "true");
-document.body.append(heldEl);
-function moveHeld(x, y) { heldEl.style.transform = `translate(${x}px,${y}px) rotate(${held?.rot || 0}rad)`; }
-function pickUp(id, rot, x, y) {
-  held = { id, rot };
-  const size = Math.ceil(sauceR() * TOPPING_SIZE / .38);
-  toppingCanvas(heldEl, id, size, .38, 0);
-  heldEl.style.margin = `${-size / 2}px 0 0 ${-size / 2}px`;
-  heldEl.hidden = false;
-  document.body.classList.add("holding");
-  moveHeld(x, y);
-  heldEl.animate([{ scale: .6 }, { scale: 1.2 }, { scale: 1 }], { duration: reduce ? 0 : 220 });
-  updateTray();
-}
-function putBack(quiet) {
-  if (!held) return;
-  held = null;
-  heldEl.hidden = true;
-  document.body.classList.remove("holding");
-  if (!quiet) { sfx.pop(); updateTray(); }
-}
-const lastPointer = { x: 0, y: 0 };
-addEventListener("pointerdown", e => { pointerKind = e.pointerType; lastPointer.x = e.clientX; lastPointer.y = e.clientY; }, true);
-addEventListener("pointermove", e => {
-  lastPointer.x = e.clientX; lastPointer.y = e.clientY;
-  if (held && e.pointerType !== "touch") moveHeld(e.clientX, e.clientY);
-});
-
 function tapBin(id, bin, byKeyboard) {
   audio();
   if (P.step !== "top" || busy) return;
-  if (held?.id === id) return putBack();
+  if (carrying()) return say("Put the pizza down first!");
+  if (held?.kind === "topping" && held.id === id) return putAway();
   if (P.toppings.length >= MAX_TOPPINGS) {
     sfx.full();
     say("The pizza is full!");
     return;
   }
-  // a mouse carries it under the pointer; on a touch screen it lifts up out of its box
-  const r = bin.getBoundingClientRect();
-  const follow = !byKeyboard && (pointerKind === "mouse" || pointerKind === "pen");
-  pickUp(id, Math.random() * Math.PI * 2, follow ? lastPointer.x : r.left + r.width / 2, follow ? lastPointer.y : r.top + r.height * .25);
+  hold("topping", id, ...fromButton(bin, byKeyboard), Math.random() * Math.PI * 2);
   tone(600, 0, .1, "sine", .12, 900);
   say(cap(TOPPING[id].one));
 }
-function putDown(spot) {
-  const t = { id: held.id, x: spot.x, y: spot.y, rot: held.rot };
-  putBack(true);
-  updateTray();
+function putDown(u) {
+  const t = { id: held.id, x: u.x, y: u.y, rot: held.rot };
+  putAway(true);
   landTopping(t);
 }
 function landTopping(t) {
@@ -442,7 +675,7 @@ function landTopping(t) {
     const st = orderStatus(order, P.toppings), want = order.toppings[t.id];
     if (!want) say(`Oh no, no ${named(t.id, 2)} for this monster! Take it off.`);
     else if (n > want) say(`Oops, too many ${named(t.id, 2)}! Take one off.`);
-    else if (st.done) { say(`${cap(word(n))}! That's just right. Into the oven!`); hop(); }
+    else if (st.done) { say(`${cap(word(n))}! That's just right. Pick up the peel!`); hop(); }
     else if (n === want) { const id = st.missing.find(i => !st.extra.includes(i)) ?? st.missing[0]; say(id ? `${cap(word(n))}! Now ${word(order.toppings[id])} ${named(id, order.toppings[id])}.` : cap(word(n))); }
     else say(cap(word(n)));
   }
@@ -450,79 +683,127 @@ function landTopping(t) {
 }
 function removeTopping(i) {
   const [t] = P.toppings.splice(i, 1);
-  puffs.push({ x: t.x, y: t.y, t: performance.now() });
+  const g = pizzaAt();
+  if (g) puffs.push({ x: g.x + t.x * g.R * .84, y: g.y + t.y * g.R * .84, r: g.R * .1, t: performance.now() });
   sfx.pop();
-  if (order && orderStatus(order, P.toppings).done) say("That's just right. Into the oven!");
+  if (order && orderStatus(order, P.toppings).done) say("That's just right. Pick up the peel!");
   updateTicket(); updateTray();
 }
-
-// ---------- step 4: bake ----------
-const OVEN_IN = 1000, OVEN_OUT = 900;
-function startBake() {
-  if (P.step !== "top" || busy || !readyToBake()) return;
-  oven = { phase: "in", t0: performance.now() };
-  sfx.whoosh();
-  setStep("bake");
+function notReady() {
+  const st = orderStatus(order, P.toppings);
+  if (st.extra.length) return `Not yet! Too many ${named(st.extra[0], 2)}.`;
+  const id = st.missing[0], need = order.toppings[id] - (countToppings(P.toppings)[id] || 0);
+  return `Not yet! It needs ${word(need)} more ${named(id, need)}.`;
 }
-function stoke() {
-  if (P.step !== "bake" || !oven || oven.phase === "out" || oven.phase === "ding") return;
+
+// ---------- step 4: into the oven with the peel ----------
+function usePeel(at, onPizza) {
+  if (P.where === "board") {
+    if (P.step !== "top") return say("Make the pizza first!");
+    if (!onPizza) return say("Slide the peel under the pizza!");
+    if (!readyToBake()) return say(notReady());
+    P.where = "peel";
+    renderHeld();
+    sfx.whoosh();
+    setStep("bake");
+    return say("Now tap the oven to slide it in!");
+  }
+  if (P.where === "peel") {
+    if (P.bake < 1) {
+      if (at !== "oven") return say("Put it in the oven!");
+      P.where = "oven";
+      putAway(true);
+      sfx.whoosh();
+      updateTray();
+      return say("Into the oven! Add wood to make the fire hot.");
+    }
+    if (at !== "cut") return say("Put it on the cutting board!");
+    P.where = "counter";
+    putAway(true);
+    sfx.plop();
+    return setStep("cut");
+  }
+  if (P.where === "oven") {
+    if (at !== "oven") return say("The pizza is in the oven!");
+    if (P.bake < 1) return say("Not ready yet! Add some wood to make it hotter.");
+    P.where = "peel";
+    renderHeld();
+    sfx.whoosh();
+    updateTray();
+    say("Now put it on the cutting board!");
+  }
+}
+function throwLog() {
+  putAway(true);
   P.heat = addLog(P.heat);
   sfx.crackle();
   for (let i = 0; i < 26; i++) sparks.push({ x: .5 + (Math.random() - .5) * .16, y: .63, vx: (Math.random() - .5) * .25, vy: -.2 - Math.random() * .45, life: 1 });
+  updateTray();
+  if (P.where !== "oven") say("The fire is getting hot!");
 }
-function bakeFrame(now, dt) {
-  const t = now / 1000, el = now - oven.t0, c = s / 2;
-  let k = 1; // 0 = on the board, 1 = in the oven
-  if (oven.phase === "in") { k = reduce ? 1 : Math.min(1, el / OVEN_IN); if (k >= 1) oven = { phase: "bake", t0: now }; }
-  if (oven.phase === "bake") {
+function bakeFrame(dt) {
+  if (P.where === "oven" && P.bake < 1) {
     P.bake = bakeTick(P.bake, P.heat, dt);
-    P.heat = coolTick(P.heat, dt);
-    const m = tray.querySelector(".meter");
-    if (m) { m.querySelector(".meter-fill").style.width = P.bake * 100 + "%"; m.setAttribute("aria-valuenow", Math.round(P.bake * 100)); }
-    if (P.bake >= 1) { oven = { phase: "ding", t0: now }; sfx.ding(); hop("wiggle"); }
+    if (P.bake >= 1) { sfx.ding(); hop("wiggle"); say("Ding! It's ready. Use the peel to take it out."); updateTray(); }
   }
-  if (oven.phase === "ding" && el > (reduce ? 200 : 900)) { oven = { phase: "out", t0: now }; sfx.whoosh(); }
-  if (oven.phase === "out") {
-    k = reduce ? 0 : 1 - Math.min(1, el / OVEN_OUT);
-    if (k <= 0) { oven = null; setStep("cut"); }
-  }
+  P.heat = coolTick(P.heat, dt);
   sparks = sparks.filter(sp => (sp.life -= dt * 1.4) > 0);
   for (const sp of sparks) { sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.vy += .3 * dt; }
-  // the oven fades in over the board as the pizza slides in
-  const ease = k * k * (3 - 2 * k);
-  if (ease < 1) { ctx.globalAlpha = 1 - ease; drawBoard(ctx, c, c, boardR()); }
-  ctx.globalAlpha = Math.min(1, ease * 1.6);
-  drawOven(ctx, s, t, P.heat, sparks);
-  ctx.globalAlpha = 1;
-  const y = c + (s * OVEN_FLOOR.y - c) * ease;
-  const R = pizzaR() + (s * OVEN_FLOOR.r - pizzaR()) * ease;
-  const sq = 1 + (OVEN_FLOOR.squash - 1) * ease;
-  ctx.save();
-  ctx.translate(c, y); ctx.scale(1, sq); ctx.translate(-c, -y);
-  drawPizza(ctx, c, y, R, { ...P, sauceImg: sauceCv });
-  ctx.restore();
-  if (oven?.phase === "ding") {
-    ctx.fillStyle = "#fff6c9"; ctx.strokeStyle = INK; ctx.lineWidth = 4;
-    ctx.font = `800 ${s * .12}px "Baloo 2", system-ui, sans-serif`; ctx.textAlign = "center";
-    ctx.strokeText("Ding!", c, s * .32); ctx.fillText("Ding!", c, s * .32);
-  }
+  const m = P.step === "bake" && tray.querySelector(".meter");
+  if (m) { m.querySelector(".meter-fill").style.width = P.bake * 100 + "%"; m.setAttribute("aria-valuenow", Math.round(P.bake * 100)); }
 }
 
-// ---------- step 5: cut and eat ----------
-// Each cut runs through the middle; a swipe cuts along its own direction.
+// ---------- step 5: cut, box and serve ----------
+// Each cut runs through the middle, towards where you tapped.
 function cutOnce(dx, dy) {
   if (P.step !== "cut" || busy || cutAnim || P.cuts.length >= 4) return;
-  const k = dx === undefined ? [0, 2, 1, 3].find(k => !P.cuts.includes(k)) : cutFor(dx, dy, P.cuts);
+  const k = cutFor(dx, dy, P.cuts);
   const base = k * Math.PI / 4;
-  const a = dx === undefined || Math.cos(Math.atan2(dy, dx) - base) < 0 ? base + Math.PI : base;
+  const a = Math.cos(Math.atan2(dy, dx) - base) < 0 ? base : base + Math.PI;
   sfx.slice();
   const done = () => {
     P.cuts.push(k);
-    if (P.cuts.length >= 4) { busy = true; say("Eight slices! Yum!"); setTimeout(eat, reduce ? 200 : 700); }
+    if (P.cuts.length >= 4) finishStep("box", 700);
     else say(`${cap(word(P.cuts.length * 2))} slices`);
   };
   if (reduce) return done();
   cutAnim = { a, p: 0, t0: performance.now(), ms: 420, done };
+}
+function pickUpPizza(x, y) {
+  P.where = "hand";
+  hold("pizza", null, x, y);
+  sfx.pop();
+}
+function setDownPizza() {
+  putAway(true);
+  P.where = "counter";
+  sfx.plop();
+  updateTray();
+}
+function boxIt() {
+  putAway(true);
+  P.where = "box";
+  P.lidTo = 1;
+  sfx.plop();
+  setTimeout(() => hiss(.15, 300, "lowpass", .4), reduce ? 0 : 450);
+  finishStep("serve", 900);
+}
+function pickUpBox(x, y) {
+  P.box = "hand";
+  hold("box", null, x, y);
+  sfx.pop();
+}
+function setDownBox() {
+  putAway(true);
+  P.box = "counter";
+  sfx.plop();
+  updateTray();
+}
+function serve() {
+  putAway(true);
+  P.box = "counter";
+  P.lidTo = 0;
+  eat();
 }
 function eat() {
   setStep("eat");
@@ -537,7 +818,8 @@ function eat() {
     else setTimeout(served1, reduce ? 100 : 400);
   };
   renderCreature("chomp");
-  setTimeout(bite, reduce ? 0 : 500);
+  say("Yum yum!");
+  setTimeout(bite, reduce ? 0 : 700);
 }
 function served1() {
   served.push({ ...customer });
@@ -549,12 +831,17 @@ function served1() {
   confetti();
   setTimeout(() => (served.length % 5 === 0 ? party(nextCustomer) : nextCustomer()), reduce ? 400 : 2600);
 }
+function startPizza() {
+  P = freshPizza();
+  putAway(true);
+  cutAnim = null; rollAnim = null; pinY = null; sparks = [];
+  clearSauce(sauceCv);
+  lastSig = null;
+}
 function nextCustomer(quiet) {
   customer = newCustomer(customer);
   order = mode === "orders" ? makeOrder(served.length) : null;
-  P = freshPizza();
-  oven = null; cutAnim = null; rollAnim = null; pinY = null; sparks = [];
-  clearSauce(sauceCv);
+  startPizza();
   renderCreature();
   hop("arrive");
   renderTicket();
@@ -565,63 +852,6 @@ function greet() {
   if (order) say(`Hello! Can I have a pizza with ${orderText(order)}, please? First, roll the dough!`);
   else say("Hello! Make me any pizza you like. First, roll the dough!");
 }
-
-// ---------- pointer play on the pizza ----------
-cv.addEventListener("keydown", e => {
-  if ((e.key === "Enter" || e.key === " ") && P.step === "top" && held) { e.preventDefault(); putDown(spotFor(P.toppings)); }
-});
-let drag = null;
-cv.addEventListener("pointerdown", e => {
-  audio();
-  cv.setPointerCapture(e.pointerId);
-  const r = cv.getBoundingClientRect();
-  drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, u: toU(e), moved: 0 };
-  if (P.step === "roll") pinY = e.clientY - r.top;
-  if (P.step === "sauce" && !busy) { addDab(drag.u.x, drag.u.y); squishSound(); checkSauce(); }
-  if (P.step === "cheese" && !busy) { sprinkle(drag.u.x, drag.u.y, 8, .2); sprinkleSound(); }
-});
-cv.addEventListener("pointermove", e => {
-  if (!drag) return;
-  const r = cv.getBoundingClientRect();
-  const d = Math.hypot(e.clientX - drag.x, e.clientY - drag.y);
-  drag.moved += d; drag.x = e.clientX; drag.y = e.clientY;
-  const u = toU(e);
-  if (P.step === "roll" && !rollAnim) {
-    pinY = Math.max(s * .1, Math.min(s * .9, e.clientY - r.top));
-    if (d > 0) { rollBy(d / (s * ROLL_DRAG)); rollSound(); }
-  }
-  if (P.step === "sauce" && !busy) {
-    // fill in along the stroke so fast swipes still leave a trail
-    const steps = Math.ceil(Math.hypot(u.x - drag.u.x, u.y - drag.u.y) / .08);
-    for (let i = 1; i <= steps; i++) addDab(drag.u.x + (u.x - drag.u.x) * i / steps, drag.u.y + (u.y - drag.u.y) * i / steps);
-    if (steps) { squishSound(); checkSauce(); }
-  }
-  if (P.step === "cheese" && !busy && d > 4) { sprinkle(u.x, u.y, 3, .18); sprinkleSound(); }
-  drag.u = u;
-});
-const endDrag = e => {
-  if (!drag) return;
-  const u = toU(e), tap = drag.moved < 10;
-  if (P.step === "roll") pinY = null;
-  if (P.step === "top" && tap && !busy) {
-    const i = hitTopping(P.toppings, u.x, u.y);
-    if (held) {
-      if (Math.hypot(u.x, u.y) < .95) putDown(u);
-      else say("Put it on the pizza!");
-    } else if (i >= 0) {
-      const [t] = P.toppings.splice(i, 1);
-      pickUp(t.id, t.rot, e.clientX, e.clientY - (e.pointerType === "touch" ? 30 : 0));
-      sfx.pop();
-      updateTicket();
-    } else say("Tap a topping down below to pick it up!");
-  }
-  // a swipe right across the pizza cuts it, along the way you swiped
-  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
-  if (P.step === "cut" && Math.hypot(dx, dy) > pizzaR()) cutOnce(dx, dy);
-  drag = null;
-};
-cv.addEventListener("pointerup", endDrag);
-cv.addEventListener("pointercancel", () => { drag = null; pinY = null; });
 
 // ---------- pizza party: every fifth monster ----------
 function party(done) {
@@ -719,8 +949,14 @@ function tickConfetti() {
   if (bits.length) requestAnimationFrame(tickConfetti); else { confettiOn = false; cx2.clearRect(0, 0, cc.width, cc.height); }
 }
 
+
 // ---------- wiring ----------
-creatureEl.addEventListener("click", () => { audio(); hop("wiggle"); greet(); });
+creatureEl.addEventListener("click", () => {
+  audio();
+  if (held?.kind === "box") return serve();
+  hop("wiggle");
+  greet();
+});
 function setMode(m) {
   if (m === mode) return;
   mode = m;
@@ -733,9 +969,7 @@ $("mode-free").onclick = () => setMode("free");
 $("restart").onclick = () => {
   if (P.step === "eat") return;
   audio();
-  P = freshPizza();
-  oven = null; cutAnim = null; rollAnim = null; pinY = null; busy = false;
-  clearSauce(sauceCv);
+  startPizza();
   updateTicket();
   setStep("roll");
   say("Let's start again. Roll the dough!");

@@ -360,3 +360,94 @@ export function drawOven(ctx, s, t, heat, sparks) {
   rounded(ctx, s * .03, s * .84, s * .94, s * .07, s * .02); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
+
+// The oven drawn into a square of side o.s at (o.x, o.y).
+export function drawOvenAt(ctx, o, t, heat, sparks) {
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  drawOven(ctx, o.s, t, heat, sparks);
+  ctx.restore();
+}
+// Where a pizza sits on the oven floor.
+export const ovenFloor = o => ({ x: o.x + o.s * .5, y: o.y + o.s * OVEN_FLOOR.y, R: o.s * OVEN_FLOOR.r, squash: OVEN_FLOOR.squash });
+
+// A wooden pizza peel: a round paddle of radius r at (x, y), handle down to the right.
+export function drawPeel(ctx, x, y, r) {
+  ctx.save();
+  ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.lineWidth = Math.max(2.5, r * .05);
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = "#b8743c";
+  rounded(ctx, -r * .14, r * .7, r * .28, r * 1.3, r * .14); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  const g = ctx.createRadialGradient(x - r * .3, y - r * .3, r * .1, x, y, r);
+  g.addColorStop(0, "#f3d29f"); g.addColorStop(1, "#d9a462");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+// The worktop under the cutting board and the box.
+export function drawCounter(ctx, c) {
+  ctx.save();
+  ctx.fillStyle = "rgba(38,49,74,.14)";
+  rounded(ctx, c.x, c.y + c.h * .02, c.w, c.h, Math.min(c.w, c.h) * .08); ctx.fill();
+  const g = ctx.createLinearGradient(0, c.y, 0, c.y + c.h);
+  g.addColorStop(0, "#f7f4ef"); g.addColorStop(1, "#e6e0d6");
+  ctx.fillStyle = g;
+  rounded(ctx, c.x, c.y, c.w, c.h, Math.min(c.w, c.h) * .08); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = Math.max(2.5, Math.min(c.w, c.h) * .012); ctx.stroke();
+  // a few marble veins
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = "rgba(120,110,100,.12)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath(); ctx.moveTo(c.x + c.w * (i * .3 - .1), c.y);
+    ctx.bezierCurveTo(c.x + c.w * (i * .3 + .1), c.y + c.h * .4, c.x + c.w * (i * .3 - .05), c.y + c.h * .6, c.x + c.w * (i * .3 + .15), c.y + c.h);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.restore();
+}
+
+// A pizza box with its base's top-left at (b.x, b.y), side b.s. lid: 0 = open (lid up behind), 1 = shut.
+// `inside` draws whatever is in the box (the pizza) before the lid goes over it.
+export function drawBox(ctx, b, lid, inside, lidShare = .38) {
+  const { x, y, s } = b, lw = Math.max(2, s * .02);
+  ctx.save();
+  ctx.lineJoin = "round"; ctx.strokeStyle = INK; ctx.lineWidth = lw;
+  const k = Math.cos(Math.min(1, Math.max(0, lid)) * Math.PI);
+  if (k > 0) { // the inside of the lid, standing up behind
+    ctx.fillStyle = "#c98d4c";
+    ctx.beginPath(); ctx.rect(x, y - s * lidShare * k, s, s * lidShare * k); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(38,49,74,.16)"; ctx.fillRect(x + s * .03, y + s * .05, s, s);
+  ctx.fillStyle = "#dba465";
+  ctx.beginPath(); ctx.rect(x, y, s, s); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#f3dcb3";
+  ctx.beginPath(); ctx.rect(x + s * .06, y + s * .06, s * .88, s * .88); ctx.fill();
+  inside?.();
+  if (k < 0) { // the lid coming down over the top
+    const h = s * -k;
+    ctx.fillStyle = "#e5b073";
+    ctx.beginPath(); ctx.rect(x, y, s, h); ctx.fill(); ctx.stroke();
+    if (k < -.85) {
+      ctx.fillStyle = "#d8392b";
+      ctx.beginPath(); ctx.arc(x + s / 2, y + h / 2, s * .3, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#fff6c9"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `800 ${s * .17}px "Baloo 2", system-ui, sans-serif`;
+      ctx.fillText("Pizza", x + s / 2, y + h / 2 + s * .02);
+    }
+  }
+  ctx.restore();
+}
+
+// A dashed ring around where the thing in your hand can go.
+export function drawTarget(ctx, shape) {
+  ctx.save();
+  ctx.setLineDash([10, 8]); ctx.lineWidth = 4; ctx.strokeStyle = "#ffb02e";
+  ctx.beginPath();
+  if (shape.r) ctx.arc(shape.x, shape.y, shape.r, 0, TAU);
+  else ctx.roundRect ? ctx.roundRect(shape.x, shape.y, shape.w, shape.h, 14) : ctx.rect(shape.x, shape.y, shape.w, shape.h);
+  ctx.stroke();
+  ctx.restore();
+}
