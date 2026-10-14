@@ -85,8 +85,15 @@ const sfx = {
 const every = (fn, ms) => { let last = 0; return () => { const n = performance.now(); if (n - last > ms) { last = n; fn(); } }; };
 const rollSound = every(sfx.roll, 160);
 
+// Speaks for the monster, and shows the words in the hint line for a few seconds too,
+// so nothing depends on hearing it.
+let said = "", saidUntil = 0, saidTimer;
 function say(text, queue = false) {
   $("announce").textContent = text;
+  said = text; saidUntil = performance.now() + 3500;
+  showHint();
+  clearTimeout(saidTimer);
+  saidTimer = setTimeout(showHint, 3600);
   if (muted) return;
   try {
     if (!queue) speechSynthesis.cancel();
@@ -182,6 +189,8 @@ function renderSteps() {
     const now = i === chipOf(P.step);
     li.classList.toggle("now", now);
     li.classList.toggle("done", !now && stageDone(STAGES[i]));
+    // when the sauce is what's stopping the peel, the Sauce chip calls you back
+    li.classList.toggle("need", STAGES[i] === "sauce" && P.step === "top" && !!order && canDecorate() && (P.sauce !== order.sauce || !P.dabs.length) && orderStatus(order, P.toppings).done);
     const b = li.querySelector("button");
     if (now) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
     b.disabled = busy || P.step === "eat";
@@ -227,10 +236,16 @@ function updateTray() {
   if (u) u.disabled = !held && !{ sauce: P.pours.length, cheese: P.handfuls.length, top: P.toppings.length }[P.step];
   const peel = $("tool-peel");
   if (peel) peel.classList.toggle("pulse", !held && (P.step === "top" ? canDecorate() && readyToBake() : P.where === "oven" && P.bake >= 1));
-  const hint = $("hint");
-  if (hint) hint.textContent = hintText();
+  showHint();
   creatureEl.classList.toggle("target", held?.kind === "box");
   renderSteps();
+}
+function showHint() {
+  const hint = $("hint");
+  if (!hint) return;
+  const fresh = performance.now() < saidUntil;
+  hint.textContent = fresh ? said : hintText();
+  hint.classList.toggle("said", fresh);
 }
 const canDecorate = () => P.where === "board" && P.roll >= 1;
 const readyToBake = () => !order || (P.sauce === order.sauce && P.dabs.length > 0 && orderStatus(order, P.toppings).done);
@@ -248,7 +263,9 @@ function hintText() {
     case "cheese": return off || (k === "cheese" ? "Tap the pizza to sprinkle the cheese" : "Pick up the cheese");
     case "top":
       if (k === "peel") return off || "Tap the pizza to slide the peel under it";
-      return off || (k === "topping" ? "Tap the pizza to put it down" : readyToBake() ? "Ready? Pick up the peel" : "Pick up a topping");
+      if (off || k === "topping") return off || "Tap the pizza to put it down";
+      if (readyToBake()) return "Ready? Pick up the peel";
+      return order && orderStatus(order, P.toppings).done ? notReady() : "Pick up a topping";
     case "bake":
       if (P.where === "board") return P.roll >= 1 ? "Use the peel to put the pizza in the oven" : "Make the pizza first!";
       if (P.where === "peel") return P.bake >= 1 ? "Put it on the cutting board" : "Tap the oven to slide it in";

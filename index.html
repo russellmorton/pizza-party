@@ -82,6 +82,7 @@ button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 .steps li:not(.now):has(button:enabled):hover { background: #fff; transform: scale(1.05); }
 .steps li.now { background: var(--ink); color: #fff; transform: scale(1.08); }
 .steps li.done { background: #e3f3d8; color: #2f6b1f; }
+.steps li.need { background: #ffe1dc; color: var(--tomato); animation: pulse 1.2s ease-in-out infinite; }
 .steps li.done .tick { display: inline; }
 @media (max-width: 520px) { .steps li .lbl { display: none; } .steps li { padding: 2px 4px; } .steps li.now .lbl { display: inline; } }
 
@@ -144,6 +145,7 @@ button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 /* tool tray */
 .tray { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; min-height: 112px; }
 .tray .hint { margin: 0; font-weight: 800; font-size: 1.05rem; line-height: 1.2; text-align: center; min-height: 1.2em; color: var(--ink); }
+.tray .hint.said { background: var(--card); border-radius: 999px; padding: 2px 14px; box-shadow: 0 2px 0 rgba(38,49,74,.15); color: var(--tomato); }
 .tray .tools { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; }
 .tool {
   border: 0; background: var(--card); border-radius: 20px; padding: 6px 8px 4px;
@@ -217,7 +219,7 @@ body.holding .work canvas { cursor: grabbing; }
 }
 @media (max-width: 400px) { .bar h1 { font-size: 1.2rem; } .seg button { padding: 4px 8px; font-size: .85rem; } }
 @media (prefers-reduced-motion: reduce) {
-  .creature, .tool .ico, .party .banner, .party .guest, .party .table canvas { animation: none !important; }
+  .creature, .tool .ico, .steps li, .party .banner, .party .guest, .party .table canvas { animation: none !important; }
 }
 </style>
 </head>

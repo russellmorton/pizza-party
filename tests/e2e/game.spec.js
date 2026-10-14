@@ -135,6 +135,7 @@ test.describe("with reduced motion", () => {
     await tool(page, "Peel").click();
     await tap(page, (await kitchen(page, "board")).board());
     await expect(page.locator("#announce")).toContainText("sauce");
+    await expect(page.locator("#hint")).toContainText("sauce");   // shown, not only spoken
     expect(await step(page)).toBe("top");
     await chip(page, "Sauce").click();                       // back to the sauce, toppings and all
     await tool(page, right === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
