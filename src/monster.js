@@ -1,4 +1,10 @@
 // The hungry monster customers, drawn as SVG (the same family as Paint Pots).
+import { costume } from "./halloween.js";
+
+// At Halloween every monster comes in costume.
+let dressedUp = false;
+export function dressUp(on) { dressedUp = on; }
+
 export const INK = "#26314a";
 export const MONSTER_COLOURS = ["#ff8a5c", "#7cc6ff", "#b58cff", "#7ad67a", "#ffc83d", "#ff7ab8", "#5fd3c4"];
 
@@ -32,5 +38,6 @@ export function monsterSVG(kind, fill, mood = "wait") {
   }[mood];
   const feet = `<ellipse cx="42" cy="106" rx="11" ry="6" class="body"/><ellipse cx="78" cy="106" rx="11" ry="6" class="body"/>`;
   const blush = `<circle cx="34" cy="76" r="6" fill="#ff8aa0" opacity=".35"/><circle cx="86" cy="76" r="6" fill="#ff8aa0" opacity=".35"/>`;
-  return `<svg viewBox="0 0 120 120" aria-hidden="true"><g fill="${fill}" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round">${feet}${BODIES[kind]}</g>${blush}${eyes}${mouth}</svg>`;
+  const dress = dressedUp ? costume(kind, mood) : { behind: "", front: "" };
+  return `<svg viewBox="0 0 120 120" aria-hidden="true">${dress.behind}<g fill="${fill}" stroke="${INK}" stroke-width="3.5" stroke-linejoin="round">${feet}${BODIES[kind]}</g>${blush}${eyes}${mouth}${dress.front}</svg>`;
 }

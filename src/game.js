@@ -5,10 +5,11 @@ import {
 } from "./pizza.js";
 import {
   TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOvenAt, ovenFloor, drawPeel, drawCounter, drawBox, drawTarget,
-  sizeSauce, paintDabs, clearSauce,
+  sizeSauce, paintDabs, clearSauce, setSpooky,
 } from "./draw.js";
 import { layout, blendLayout, stationAt, LID } from "./kitchen.js";
-import { monsterSVG, MONSTER_COLOURS, KINDS, INK } from "./monster.js";
+import { monsterSVG, MONSTER_COLOURS, KINDS, INK, dressUp } from "./monster.js";
+import { isHalloween } from "./halloween.js";
 
 const $ = id => document.getElementById(id);
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -104,9 +105,26 @@ function say(text, queue = false) {
 }
 
 // ---------- title ----------
-const titleCols = ["#d8392b", "#ffc83d", "#5a9e35"];
-$("title").innerHTML = [..."Pizza Party"].map((ch, i) =>
-  ch === " " ? " " : `<span aria-hidden="true" style="color:${titleCols[i % 3]}">${ch}</span>`).join("");
+function renderTitle() {
+  const cols = halloween ? ["#ff8c1a", "#b77cff", "#7ad67a"] : ["#d8392b", "#ffc83d", "#5a9e35"];
+  $("title").innerHTML = [..."Pizza Party"].map((ch, i) =>
+    ch === " " ? " " : `<span aria-hidden="true" style="color:${cols[i % 3]}">${ch}</span>`).join("");
+}
+
+// ---------- Halloween ----------
+// On for all of October; the pumpkin switch in the top bar turns it on or off on any day, and is
+// remembered. ?halloween=1 or 0 in the address beats both.
+const KEY = "pizza-party";
+let saved = {};
+try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
+let halloween = isHalloween(new Date(), location.search, typeof saved.halloween === "boolean" ? saved.halloween : null);
+function applyHalloween() {
+  dressUp(halloween); setSpooky(halloween);
+  document.body.classList.toggle("halloween", halloween);
+  $("spooky").setAttribute("aria-pressed", String(halloween));
+  renderTitle();
+}
+applyHalloween();
 
 // ---------- icons ----------
 const ICON = {
@@ -921,7 +939,7 @@ function party(done) {
   ov.className = "party";
   ov.setAttribute("role", "dialog");
   ov.setAttribute("aria-label", "Pizza party");
-  ov.innerHTML = `<div class="banner">Pizza Party!</div>
+  ov.innerHTML = `<div class="banner">${halloween ? "Spooky Pizza Party!" : "Pizza Party!"}</div>
     <div class="guests">${guests.map((g, i) => `<div class="guest" style="--d:${i * .09}s">${monsterSVG(g.kind, g.colour, "happy")}</div>`).join("")}</div>
     <div class="table"><canvas aria-hidden="true"></canvas></div>
     <button class="end-party" aria-label="End the party"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 4l12 12M16 4L4 16"/></svg></button>`;
@@ -936,7 +954,7 @@ function party(done) {
   for (let i = 0; i < 160; i++) { const a = Math.random() * 7, d = .95 * Math.sqrt(Math.random()); big.cheese.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, a, l: .08, spot: Math.random() < .14 }); }
   for (let i = 0; i < 16; i++) big.toppings.push({ id: TOPPINGS[i % TOPPINGS.length].id, ...spotFor(big.toppings), rot: Math.random() * 6 });
   drawPizza(px, size / 2, size / 2, size * .46, big);
-  say("Pizza party!");
+  say(halloween ? "Spooky pizza party!" : "Pizza party!");
   const len = jingle();
   const bursts = setInterval(confetti, 1300); confetti();
   let over = false;
@@ -985,7 +1003,7 @@ function confetti() {
   if (reduce) return;
   cc.width = innerWidth; cc.height = innerHeight;
   const r = cv.getBoundingClientRect();
-  const cols = ["#d8392b", "#ffc83d", "#5a9e35", customer.colour, "#7cc6ff"];
+  const cols = halloween ? ["#ff8c1a", "#8a5cf0", "#7ad67a", customer.colour, "#2b2733"] : ["#d8392b", "#ffc83d", "#5a9e35", customer.colour, "#7cc6ff"];
   for (let i = 0; i < 90; i++) {
     bits.push({
       x: r.left + r.width / 2, y: r.top + r.height / 2,
@@ -1035,6 +1053,18 @@ $("restart").onclick = () => {
   updateTicket();
   setStep("roll");
   say("Let's start again. Roll the dough!");
+};
+$("spooky").onclick = () => {
+  audio();
+  halloween = !halloween;
+  try { localStorage.setItem(KEY, JSON.stringify({ ...saved, halloween })); } catch {}
+  applyHalloween();
+  renderCreature(P.step === "eat" ? "happy" : "wait");
+  renderShelf();
+  tray.querySelectorAll(".bin").forEach(b => toppingCanvas(b.querySelector("canvas"), b.dataset.id, 46));
+  renderTicket();
+  if (held) renderHeld();
+  say(halloween ? "Happy Halloween!" : "No more Halloween.");
 };
 $("mute").onclick = () => {
   muted = !muted;

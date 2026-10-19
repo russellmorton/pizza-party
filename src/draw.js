@@ -94,6 +94,11 @@ export function paintDabs(cv, dabs) {
 export function clearSauce(cv) { cv.getContext("2d").clearRect(0, 0, cv.width, cv.height); }
 
 // Toppings, centred on (x, y) with radius r. `bake` runs 0..1.
+// At Halloween the pepperoni is carved like a jack-o'-lantern, the olives are little spiders and the
+// box has an orange stamp.
+let spooky = false;
+export function setSpooky(on) { spooky = on; }
+
 export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
   ctx.save();
   ctx.translate(x, y); ctx.rotate(rot);
@@ -110,6 +115,11 @@ export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
       }
       ctx.strokeStyle = "rgba(255,255,255,.3)"; ctx.lineWidth = r * .12;
       ctx.beginPath(); ctx.arc(0, 0, r * .66, Math.PI * 1.1, Math.PI * 1.45); ctx.stroke();
+      if (spooky) {   // a jack-o'-lantern face, cut into the pepperoni
+        ctx.fillStyle = blend("#ffd36a", "#f2b632", bake);
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(s * r * .12, -r * .08); ctx.lineTo(s * r * .52, -r * .08); ctx.lineTo(s * r * .32, -r * .45); ctx.closePath(); ctx.fill(); }
+        ctx.beginPath(); ctx.moveTo(-r * .58, r * .18); ctx.quadraticCurveTo(0, r * .78, r * .58, r * .18); ctx.quadraticCurveTo(0, r * .42, -r * .58, r * .18); ctx.fill();
+      }
       break;
     }
     case "mushroom": {
@@ -130,6 +140,20 @@ export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
       break;
     }
     case "olive": {
+      if (spooky) {   // an olive spider: half an olive for the body, the other half cut into legs
+        ctx.strokeStyle = "#1e1b24"; ctx.lineWidth = r * .16;
+        for (const s of [-1, 1]) for (let i = 0; i < 4; i++) {
+          const kx = s * r * .95, ky = (i - 1.5) * r * .42;
+          ctx.beginPath(); ctx.moveTo(s * r * .3, ky * .3); ctx.quadraticCurveTo(kx, ky - r * .45, s * r * 1.15, ky + r * .1); ctx.stroke();
+        }
+        ctx.fillStyle = "#2b2733"; ctx.beginPath(); ctx.ellipse(0, r * .08, r * .5, r * .44, 0, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -r * .42, r * .26, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#fff";
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * r * .11, -r * .45, r * .08, 0, TAU); ctx.fill(); }
+        ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = r * .08;
+        ctx.beginPath(); ctx.arc(0, r * .08, r * .32, Math.PI * 1.15, Math.PI * 1.5); ctx.stroke();
+        break;
+      }
       ctx.strokeStyle = "#1e1b24"; ctx.lineWidth = r * .62;
       ctx.beginPath(); ctx.arc(0, 0, r * .66, 0, TAU); ctx.stroke();
       ctx.strokeStyle = "#3b3746"; ctx.lineWidth = r * .4;
@@ -433,7 +457,7 @@ export function drawBox(ctx, b, lid, inside, lidShare = .38) {
     ctx.fillStyle = "#e5b073";
     ctx.beginPath(); ctx.rect(x, y, s, h); ctx.fill(); ctx.stroke();
     if (k < -.85) {
-      ctx.fillStyle = "#d8392b";
+      ctx.fillStyle = spooky ? "#ff8c1a" : "#d8392b";
       ctx.beginPath(); ctx.arc(x + s / 2, y + h / 2, s * .3, 0, TAU); ctx.fill(); ctx.stroke();
       ctx.fillStyle = "#fff6c9"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.font = `800 ${s * .17}px "Baloo 2", system-ui, sans-serif`;

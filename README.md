@@ -15,6 +15,7 @@ Tools stay in your hand until you put them back (tap their button again); a topp
 
 - **Orders:** each monster wants a sauce and a number of toppings, shown on its order ticket as pictures and dots. Orders start with one kind of topping and grow to three. Every fifth monster throws a pizza party.
 - **Free play:** make any pizza you like.
+- **At Halloween** (all of October) the tablecloth turns purple and orange, the monsters come in costume (a witch's hat, bat wings, a jack-o'-lantern on an antenna or vampire fangs), the pepperoni is carved like jack-o'-lanterns, the olives become little spiders, and every fifth monster throws a Spooky Pizza Party. The pumpkin button in the top bar turns it on or off on any day and is remembered; `?halloween=1` or `?halloween=0` in the address overrides both.
 
 Live at https://pizza-party-wheat.vercel.app
 
@@ -42,6 +43,7 @@ npm test           # both
 - `src/kitchen.js`: where the board, oven and counter go, and which one a tap lands on
 - `src/draw.js`: canvas drawing for the board, pizza, toppings, oven, peel, counter and box
 - `src/monster.js`: the monster customers
+- `src/halloween.js`: when it's Halloween, and the monsters' costumes
 - `src/game.js`: everything else, including steps, your hand, input, sound, voice and the party
 
 ## Deploying

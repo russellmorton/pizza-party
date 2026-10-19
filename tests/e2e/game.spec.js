@@ -5,7 +5,7 @@ let errors;
 test.beforeEach(async ({ page }) => {
   errors = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.goto("/");
+  await page.goto("/?halloween=0");   // Halloween (all of October) has its own tests at the end
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
@@ -250,5 +250,47 @@ test.describe("with reduced motion", () => {
     await party.getByRole("button", { name: "End the party" }).click();
     await expect(party).toHaveCount(0);
     await expect.poll(() => step(page)).toBe("roll");
+  });
+});
+
+test.describe("at Halloween", () => {
+  const spooky = page => page.getByRole("button", { name: "Halloween" });
+
+  test("the monsters come in costume", async ({ page }) => {
+    await page.goto("/?halloween=1");
+    await expect(page.locator("body")).toHaveClass(/halloween/);
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#creature .costume")).toHaveCount(1);
+  });
+
+  test("the pumpkin switch turns it on and off at any time, and is remembered", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 4, 12, 10, 0));   // May
+    await page.goto("/");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#creature .costume")).toHaveCount(0);
+    await spooky(page).click();
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("body")).toHaveClass(/halloween/);
+    await expect(page.locator("#creature .costume")).toHaveCount(1);
+    await page.reload();
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+    await spooky(page).click();
+    await expect(page.locator("#creature .costume")).toHaveCount(0);
+    await page.reload();
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("is on in October without touching the switch", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 31, 18, 0));
+    await page.goto("/");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the top bar still fits on a small phone", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto("/?halloween=1");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    const bar = await page.locator(".bar").boundingBox(), mute = await page.locator("#mute").boundingBox();
+    expect(mute.x + mute.width).toBeLessThanOrEqual(bar.x + bar.width + 1);
   });
 });

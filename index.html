@@ -40,6 +40,12 @@ body {
   -webkit-user-select: none;
   touch-action: manipulation;
 }
+/* Halloween (October, or the pumpkin switch): a spooky tablecloth. See src/halloween.js */
+body.halloween { --cloth: #2d2347; --check: rgba(255, 140, 26, .16); }
+body.halloween .bar h1 span { -webkit-text-stroke-color: #fff6e0; }
+body.halloween .steps li:not(.now):not(.done):not(.need) { background: rgba(255,255,255,.85); }
+body.halloween .tray .hint:not(.said) { color: #fff6e0; }
+#spooky[aria-pressed="true"] { background: #ff8c1a; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 [hidden] { display: none !important; }
@@ -218,6 +224,12 @@ body.holding .work canvas { cursor: grabbing; }
   .tool .ico { width: 40px; height: 40px; }
 }
 @media (max-width: 400px) { .bar h1 { font-size: 1.2rem; } .seg button { padding: 4px 8px; font-size: .85rem; } }
+/* phones: the mode switch gets a row of its own under the title and buttons */
+@media (max-width: 520px) {
+  .bar { flex-wrap: wrap; row-gap: 6px; }
+  .bar .seg { order: 1; flex-basis: 100%; box-sizing: border-box; }
+  .bar .seg button { flex: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   .creature, .tool .ico, .steps li, .party .banner, .party .guest, .party .table canvas { animation: none !important; }
 }
@@ -233,6 +245,9 @@ body.holding .work canvas { cursor: grabbing; }
     </div>
     <button class="icon-btn" id="restart" aria-label="Start this pizza again">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></svg>
+    </button>
+    <button class="icon-btn" id="spooky" aria-label="Halloween" aria-pressed="false">
+      <svg viewBox="0 0 32 32" aria-hidden="true" stroke="#26314a" stroke-width="2" stroke-linejoin="round"><path d="M15 8l-1-5 4 0-1 5z" fill="#6d8f2e"/><ellipse cx="11" cy="18" rx="8" ry="10" fill="#ffa040"/><ellipse cx="21" cy="18" rx="8" ry="10" fill="#ffa040"/><ellipse cx="16" cy="18" rx="6" ry="10.5" fill="#ffb760"/><path d="M10 16h4l-2-3zM18 16h4l-2-3zM10 21q6 5 12 0q-6 2-12 0z" fill="#26314a" stroke-width="1"/></svg>
     </button>
     <button class="icon-btn" id="mute" aria-label="Sound on">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path id="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
