@@ -1,5 +1,5 @@
 // Canvas drawing: the board, rolling pin, pizza, toppings and the oven.
-import { SAUCES, lumpiness } from "./pizza.js";
+import { sauceLook, lumpiness } from "./pizza.js";
 
 export const INK = "#26314a";
 export const TOPPING_SIZE = .17; // topping radius, as a share of the sauce radius
@@ -82,7 +82,7 @@ export function paintDabs(cv, dabs) {
   c.setTransform(h, 0, 0, h, h, h);
   c.beginPath(); c.arc(0, 0, .985, 0, TAU); c.clip();
   for (const d of dabs) {
-    const s = SAUCES[d.k];
+    const s = sauceLook(d.k, spooky);
     c.fillStyle = s.css;
     c.beginPath(); c.arc(d.x, d.y, d.r, 0, TAU); c.fill();
     c.fillStyle = s.dark; c.globalAlpha = .45;
@@ -94,8 +94,10 @@ export function paintDabs(cv, dabs) {
 export function clearSauce(cv) { cv.getContext("2d").clearRect(0, 0, cv.width, cv.height); }
 
 // Toppings, centred on (x, y) with radius r. `bake` runs 0..1.
-// At Halloween the pepperoni is carved like a jack-o'-lantern, the olives are little spiders and the
-// box has an orange stamp.
+// At Halloween every ingredient dresses up: the pepperoni is carved like a jack-o'-lantern, the
+// mushrooms are little ghosts, the olives are spiders, the pepper rings are googly eyeballs, the
+// pineapple is striped like candy corn and the basil leaves are bats. The tomato sauce is pumpkin,
+// the pesto is slime, the cheese is cobwebs and the box has an orange stamp.
 let spooky = false;
 export function setSpooky(on) { spooky = on; }
 
@@ -133,6 +135,14 @@ export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
       ctx.lineTo(-r * .34, r * .1);
       ctx.quadraticCurveTo(-r * .55, r * .12, -r, 0);
       ctx.closePath();
+      if (spooky) {   // a ghost mushroom: pale, with a surprised face on the cap
+        ctx.fillStyle = blend("#f7f5ff", "#e4dccb", bake); ctx.fill();
+        ctx.strokeStyle = "#8f88a8"; ctx.lineWidth = lw; ctx.stroke();
+        ctx.fillStyle = "#26314a";
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * r * .3, -r * .48, r * .11, r * .16, 0, 0, TAU); ctx.fill(); }
+        ctx.beginPath(); ctx.ellipse(0, -r * .16, r * .12, r * .1, 0, 0, TAU); ctx.fill();
+        break;
+      }
       ctx.fillStyle = blend("#f2e3c6", "#d8b98a", bake); ctx.fill();
       ctx.strokeStyle = "#86613f"; ctx.lineWidth = lw; ctx.stroke();
       ctx.strokeStyle = "rgba(134,97,63,.45)"; ctx.lineWidth = lw * .7;
@@ -171,6 +181,11 @@ export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
         }
         ctx.closePath();
       };
+      if (spooky) {   // a googly eyeball looking out of the pepper ring
+        ctx.fillStyle = "#fffdf4"; ctx.beginPath(); ctx.arc(0, 0, r * .72, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#26314a"; ctx.beginPath(); ctx.arc(r * .16, r * .12, r * .3, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(r * .06, r * .02, r * .09, 0, TAU); ctx.fill();
+      }
       ring(); ctx.strokeStyle = "#235f22"; ctx.lineWidth = r * .42; ctx.stroke();
       ring(); ctx.strokeStyle = blend("#46a83f", "#3a8a34", bake); ctx.lineWidth = r * .26; ctx.stroke();
       break;
@@ -180,12 +195,45 @@ export function drawTopping(ctx, id, x, y, r, rot = 0, bake = 0) {
       ctx.moveTo(-r * .95, -r * .55); ctx.lineTo(r * .95, -r * .55);
       ctx.lineTo(r * .42, r * .62); ctx.lineTo(-r * .42, r * .62); ctx.closePath();
       ctx.fillStyle = blend("#ffd84a", "#f2b632", bake); ctx.fill();
+      if (spooky) {   // striped like candy corn: yellow, then orange, then a white tip
+        ctx.save(); ctx.clip();
+        ctx.fillStyle = blend("#ff8c1a", "#e0661a", bake); ctx.fillRect(-r, -r * .2, r * 2, r);
+        ctx.fillStyle = blend("#fffdf4", "#f6e7c8", bake); ctx.fillRect(-r, r * .3, r * 2, r);
+        ctx.restore();
+        ctx.strokeStyle = "#b9851a"; ctx.lineWidth = lw; ctx.stroke();
+        break;
+      }
       ctx.strokeStyle = "#b9851a"; ctx.lineWidth = lw; ctx.stroke();
       ctx.strokeStyle = "rgba(185,133,26,.5)"; ctx.lineWidth = lw * .6;
       for (const t of [-.4, 0, .4]) { ctx.beginPath(); ctx.moveTo(t * r * 1.6, -r * .4); ctx.lineTo(t * r * .7, r * .48); ctx.stroke(); }
       break;
     }
     case "basil": {
+      if (spooky) {   // a basil leaf cut into a little bat
+        ctx.beginPath();
+        ctx.moveTo(0, -r * .3);
+        ctx.quadraticCurveTo(r * .5, -r * .62, r * 1.05, -r * .42);
+        ctx.quadraticCurveTo(r * .86, -r * .1, r * .92, r * .2);
+        ctx.quadraticCurveTo(r * .66, r * .06, r * .5, r * .28);
+        ctx.quadraticCurveTo(r * .34, r * .12, r * .16, r * .4);
+        ctx.lineTo(0, r * .3);
+        ctx.lineTo(-r * .16, r * .4);
+        ctx.quadraticCurveTo(-r * .34, r * .12, -r * .5, r * .28);
+        ctx.quadraticCurveTo(-r * .66, r * .06, -r * .92, r * .2);
+        ctx.quadraticCurveTo(-r * .86, -r * .1, -r * 1.05, -r * .42);
+        ctx.quadraticCurveTo(-r * .5, -r * .62, 0, -r * .3);
+        ctx.closePath();
+        ctx.fillStyle = blend("#43a046", "#2f7432", bake); ctx.fill();
+        ctx.strokeStyle = "#1f5a24"; ctx.lineWidth = lw; ctx.stroke();
+        ctx.beginPath();   // the head, with pointy ears
+        ctx.moveTo(-r * .22, -r * .52); ctx.lineTo(-r * .16, -r * .72); ctx.lineTo(-r * .04, -r * .56);
+        ctx.lineTo(r * .04, -r * .56); ctx.lineTo(r * .16, -r * .72); ctx.lineTo(r * .22, -r * .52);
+        ctx.quadraticCurveTo(r * .3, -r * .12, 0, -r * .08); ctx.quadraticCurveTo(-r * .3, -r * .12, -r * .22, -r * .52);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = "#fff";
+        for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(s * r * .1, -r * .36, r * .07, 0, TAU); ctx.fill(); }
+        break;
+      }
       ctx.beginPath();
       ctx.moveTo(-r, 0);
       ctx.quadraticCurveTo(-r * .1, -r * .95, r, 0);
@@ -240,7 +288,7 @@ export function drawPizza(ctx, cx, cy, R, p) {
   if (p.sauceImg && p.dabs?.length) {
     ctx.drawImage(p.sauceImg, cx - Rs, cy - Rs, Rs * 2, Rs * 2);
   } else if (p.sauceFill) {
-    ctx.fillStyle = SAUCES[p.sauceFill].css;
+    ctx.fillStyle = sauceLook(p.sauceFill, spooky).css;
     ctx.beginPath(); ctx.arc(cx, cy, Rs * .985, 0, TAU); ctx.fill();
   }
   if (bake > 0 && (p.dabs?.length || p.sauceFill)) {
@@ -250,17 +298,23 @@ export function drawPizza(ctx, cx, cy, R, p) {
   // cheese: thin shreds that melt into blobs and brown in the oven
   if (p.cheese?.length) {
     const m = Math.min(1, bake * 1.4);
-    const shred = (w, col) => {
+    const shred = (w, col, long = 1) => {
       ctx.strokeStyle = col; ctx.lineCap = "round";
       for (const c of p.cheese) {
-        const l = c.l * (1 - m * .5) * Rs, x = cx + c.x * Rs, y = cy + c.y * Rs;
+        const l = c.l * long * (1 - m * .5) * Rs, x = cx + c.x * Rs, y = cy + c.y * Rs;
         ctx.lineWidth = w;
         ctx.beginPath(); ctx.moveTo(x - Math.cos(c.a) * l / 2, y - Math.sin(c.a) * l / 2); ctx.lineTo(x + Math.cos(c.a) * l / 2, y + Math.sin(c.a) * l / 2); ctx.stroke();
       }
     };
-    const w = Rs * (.032 + .04 * m);
-    shred(w + Math.max(2, Rs * .012) * (1 - m), blend("#e1b93e", "#f0c64e", m));
-    shred(w, blend("#ffe98f", "#ffdb63", m));
+    if (spooky) {   // cobweb cheese: long, thin white strands
+      const w = Rs * (.016 + .02 * m);
+      shred(w + Math.max(1.5, Rs * .008) * (1 - m), blend("#b9b3cc", "#d9cfb8", m), 1.6);
+      shred(w, blend("#fbfaff", "#fff3d6", m), 1.6);
+    } else {
+      const w = Rs * (.032 + .04 * m);
+      shred(w + Math.max(2, Rs * .012) * (1 - m), blend("#e1b93e", "#f0c64e", m));
+      shred(w, blend("#ffe98f", "#ffdb63", m));
+    }
     if (bake > .5) {
       ctx.fillStyle = `rgba(214,140,50,${Math.min(.6, (bake - .5) * 1.4)})`;
       for (const c of p.cheese) if (c.spot) { ctx.beginPath(); ctx.ellipse(cx + c.x * Rs, cy + c.y * Rs, Rs * .03, Rs * .02, c.a, 0, TAU); ctx.fill(); }

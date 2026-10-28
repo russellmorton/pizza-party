@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOPPINGS, TOPPING, MAX_TOPPINGS, PORTIONS, makeOrder, orderText, countToppings, orderStatus, sauceStatus, sliceOf, emptySlices, spotFor, hitTopping,
+  TOPPINGS, TOPPING, SAUCES, SPOOKY_TOPPINGS, SPOOKY_SAUCES, MAX_TOPPINGS, PORTIONS, makeOrder, orderText, named, sauceLook, cheeseName,
+  countToppings, orderStatus, sauceStatus, cheeseStatus, sliceOf, emptySlices, spotFor, hitTopping,
   makeCoverage, dab, coverage, gaps, cutFor, doughSize, lumpiness, bakeTick, coolTick, addLog,
 } from "../../src/pizza.js";
 
@@ -40,6 +41,42 @@ test("later orders have up to three kinds, a few of each, and always fit on the 
 
 test("no order asks for just one or two of a topping", () => {
   for (const [few] of Object.values(PORTIONS)) assert.ok(few >= 3);
+});
+
+test("most monsters want cheese, and the first two always do", () => {
+  const r = rng(7);
+  for (let i = 0; i < 100; i++) { assert.equal(makeOrder(0, r).cheese, true); assert.equal(makeOrder(1, r).cheese, true); }
+  let without = 0;
+  for (let i = 0; i < 1000; i++) if (!makeOrder(10, r).cheese) without++;
+  assert.ok(without > 150 && without < 350, `${without} of 1000 without cheese`);
+});
+
+test("an order gets cheese, or no cheese, just as it says", () => {
+  const shreds = [{ x: 0, y: 0 }];
+  assert.deepEqual(cheeseStatus({ cheese: true }, []), { done: false, missing: true, extra: false });
+  assert.equal(cheeseStatus({ cheese: true }, shreds).done, true);
+  assert.equal(cheeseStatus({ cheese: false }, []).done, true);
+  assert.deepEqual(cheeseStatus({ cheese: false }, shreds), { done: false, missing: false, extra: true });
+  assert.equal(cheeseStatus({}, shreds).done, true, "an order that doesn't say wants cheese");
+});
+
+test("at Halloween every ingredient has a spooky version with its own name", () => {
+  for (const t of TOPPINGS) {
+    const s = SPOOKY_TOPPINGS[t.id];
+    assert.ok(s.one && s.many && s.label);
+    assert.notEqual(s.one, t.one);
+    assert.equal(named(t.id, 1, true), s.one);
+    assert.equal(named(t.id, 3, true), s.many);
+    assert.equal(named(t.id, 3), t.many);
+  }
+  for (const k of Object.keys(SAUCES)) {
+    assert.notEqual(SPOOKY_SAUCES[k].name, SAUCES[k].name);
+    assert.notEqual(sauceLook(k, true).css, SAUCES[k].css);
+    assert.equal(sauceLook(k), SAUCES[k]);
+  }
+  assert.equal(cheeseName(), "cheese");
+  assert.equal(cheeseName(true), "cobweb cheese");
+  assert.equal(orderText({ toppings: { olive: 3, basil: 4 } }, true), "three spider olives and four basil bats");
 });
 
 test("orders read like a sentence", () => {

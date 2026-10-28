@@ -17,13 +17,30 @@ export const SAUCES = {
   pesto: { name: "pesto", colour: "green", css: "#5a9e35", dark: "#3c7422" },
 };
 
+// At Halloween every ingredient has a spooky version, with its own name, so what the
+// monster says matches what's on the pizza. The orders and rules stay the same.
+export const SPOOKY_TOPPINGS = {
+  pepperoni: { one: "pumpkin pepperoni", many: "pumpkin pepperonis", label: "Pumpkin" },
+  mushroom: { one: "ghost mushroom", many: "ghost mushrooms", label: "Ghost" },
+  olive: { one: "spider olive", many: "spider olives", label: "Spider" },
+  pepper: { one: "eyeball pepper", many: "eyeball peppers", label: "Eyeball" },
+  pineapple: { one: "candy corn pineapple", many: "candy corn pineapples", label: "Candy corn" },
+  basil: { one: "basil bat", many: "basil bats", label: "Bat" },
+};
+export const SPOOKY_SAUCES = {
+  tomato: { name: "pumpkin", colour: "orange", css: "#f0801e", dark: "#c25a0c" },
+  pesto: { name: "slime", colour: "green", css: "#8fd13a", dark: "#5e9e1c" },
+};
+export const sauceLook = (k, spooky = false) => spooky ? { ...SAUCES[k], ...SPOOKY_SAUCES[k] } : SAUCES[k];
+export const cheeseName = (spooky = false) => spooky ? "cobweb cheese" : "cheese";
+
 export const MAX_TOPPINGS = 24;
 export const ROLL_DRAG = 5;       // board widths of rolling to flatten the dough
 export const LOG_HEAT = .3;
 
 const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 export const word = n => WORDS[n] ?? String(n);
-export const named = (id, n) => n === 1 ? TOPPING[id].one : TOPPING[id].many;
+export const named = (id, n, spooky = false) => { const t = spooky ? SPOOKY_TOPPINGS[id] : TOPPING[id]; return n === 1 ? t.one : t.many; };
 
 function shuffle(a, rand) {
   for (let i = a.length - 1; i > 0; i--) { const j = rand() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }
@@ -34,17 +51,18 @@ function shuffle(a, rand) {
 // or three. There's always enough for a topping on every slice.
 export const PORTIONS = { 1: [8, 10], 2: [4, 6], 3: [3, 5] };
 
-// Orders start with one kind of topping and grow to three.
+// Orders start with one kind of topping and grow to three. Most monsters want cheese,
+// and the first two always do.
 export function makeOrder(served = 0, rand = Math.random) {
   const kinds = served < 2 ? 1 : served < 6 ? 1 + (rand() < .6) : 1 + (rand() * 3 | 0);
   const [few, most] = PORTIONS[kinds];
   const ids = shuffle(TOPPINGS.map(t => t.id), rand).slice(0, kinds);
   const toppings = Object.fromEntries(ids.map(id => [id, few + (rand() * (most - few + 1) | 0)]));
-  return { sauce: rand() < .7 ? "tomato" : "pesto", toppings };
+  return { sauce: rand() < .7 ? "tomato" : "pesto", cheese: served < 2 || rand() < .75, toppings };
 }
 
-export function orderText(order) {
-  const parts = Object.entries(order.toppings).map(([id, n]) => `${word(n)} ${named(id, n)}`);
+export function orderText(order, spooky = false) {
+  const parts = Object.entries(order.toppings).map(([id, n]) => `${word(n)} ${named(id, n, spooky)}`);
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts.at(-1) : parts[0];
 }
 
@@ -54,6 +72,12 @@ export function sauceStatus(order, dabs) {
   const kinds = new Set(dabs.map(d => d.k));
   const missing = !kinds.has(order.sauce), extra = [...kinds].filter(k => k !== order.sauce);
   return { done: !missing && !extra.length, missing, extra };
+}
+
+// Cheese, or no cheese: whichever the order says (an order that doesn't say wants it).
+export function cheeseStatus(order, shreds) {
+  const want = order.cheese !== false, has = shreds.length > 0;
+  return { done: want === has, missing: want && !has, extra: !want && has };
 }
 
 export function countToppings(placed) {

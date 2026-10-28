@@ -1,7 +1,7 @@
 import {
-  TOPPINGS, TOPPING, SAUCES, MAX_TOPPINGS, ROLL_DRAG,
-  makeOrder, orderText, countToppings, orderStatus, sauceStatus, emptySlices, spotFor, hitTopping, cutFor,
-  makeCoverage, dab, gaps, doughSize, bakeTick, coolTick, addLog, word, named,
+  TOPPINGS, SAUCES, SPOOKY_TOPPINGS, MAX_TOPPINGS, ROLL_DRAG,
+  makeOrder, orderText, countToppings, orderStatus, sauceStatus, cheeseStatus, emptySlices, spotFor, hitTopping, cutFor,
+  makeCoverage, dab, gaps, doughSize, bakeTick, coolTick, addLog, word, named, sauceLook, cheeseName,
 } from "./pizza.js";
 import {
   TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOvenAt, ovenFloor, drawPeel, drawCounter, drawBox, drawTarget,
@@ -125,18 +125,26 @@ function applyHalloween() {
   renderTitle();
 }
 applyHalloween();
+// What things are called and look like right now: at Halloween every ingredient has a spooky version.
+const name = (id, n) => named(id, n, halloween);
+const sauceOf = k => sauceLook(k, halloween);
+const cheese = () => cheeseName(halloween);
+const wanted = o => orderText(o, halloween);
+const wantsCheese = () => order?.cheese !== false;
 
 // ---------- icons ----------
 const ICON = {
   pin: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><rect x="2" y="27" width="13" height="10" rx="5" fill="#b8743c"/><rect x="49" y="27" width="13" height="10" rx="5" fill="#b8743c"/><rect x="12" y="21" width="40" height="22" rx="7" fill="#e8b06c"/></g><path d="M17 27h30" stroke="#fff" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/></svg>`,
   ladle: c => `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"><path d="M44 6 L36 30" fill="none" stroke-width="7"/><path d="M44 6 L36 30" fill="none" stroke="#c9ccd6" stroke-width="3"/><path d="M12 32 h40 a20 18 0 0 1 -40 0z" fill="#c9ccd6"/><path d="M15 34 h34 a17 13 0 0 1 -34 0z" fill="${c}" stroke="none"/></g><path d="M26 54 c-2 4 -1 7 2 7 s4 -3 2 -7 l-2 -4z" fill="${c}" stroke="${INK}" stroke-width="2"/></svg>`,
-  cheese: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M14 10 h36 l6 44 h-48z" fill="#d6dbe6"/><path d="M26 2 h12 v8 h-12z" fill="#ff5a5f"/></g><g fill="${INK}"><circle cx="22" cy="22" r="2.5"/><circle cx="32" cy="22" r="2.5"/><circle cx="42" cy="22" r="2.5"/><circle cx="25" cy="33" r="2.5"/><circle cx="35" cy="33" r="2.5"/><circle cx="22" cy="44" r="2.5"/><circle cx="32" cy="44" r="2.5"/><circle cx="42" cy="44" r="2.5"/></g><g stroke="#e1b93e" stroke-width="4" stroke-linecap="round"><path d="M18 58 l4 4"/><path d="M34 58 l-3 5"/><path d="M46 58 l3 4"/></g></svg>`,
+  cheese: (shred = "#e1b93e") => `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M14 10 h36 l6 44 h-48z" fill="#d6dbe6"/><path d="M26 2 h12 v8 h-12z" fill="#ff5a5f"/></g><g fill="${INK}"><circle cx="22" cy="22" r="2.5"/><circle cx="32" cy="22" r="2.5"/><circle cx="42" cy="22" r="2.5"/><circle cx="25" cy="33" r="2.5"/><circle cx="35" cy="33" r="2.5"/><circle cx="22" cy="44" r="2.5"/><circle cx="32" cy="44" r="2.5"/><circle cx="42" cy="44" r="2.5"/></g><g stroke="${shred}" stroke-width="4" stroke-linecap="round"><path d="M18 58 l4 4"/><path d="M34 58 l-3 5"/><path d="M46 58 l3 4"/></g></svg>`,
   undo: `<svg viewBox="0 0 64 64" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 26 h22 a12 12 0 0 1 0 24 h-14"/><path d="M28 16 l-10 10 l10 10"/></svg>`,
   oven: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M6 58 V32 C6 8 58 8 58 32 V58Z" fill="#d9694a"/><path d="M18 58 V42 C18 28 46 28 46 42 V58Z" fill="#3a1a10"/></g><path d="M26 56 q-2 -10 6 -16 q-1 7 4 9 q2 -4 1 -8 q6 6 2 15z" fill="#ffb02e"/></svg>`,
   log: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linejoin="round"><path d="M8 26 h40 a8 10 0 0 1 0 20 h-40 z" fill="#8a5232"/><ellipse cx="10" cy="36" rx="8" ry="10" fill="#e3b77e"/></g><ellipse cx="10" cy="36" rx="3.5" ry="4.5" fill="none" stroke="#b07a46" stroke-width="2"/><path d="M22 31 h18 M26 41 h16" stroke="#5e341d" stroke-width="2.5" stroke-linecap="round"/><path d="M46 20 q-3 -7 3 -12 q0 5 4 6 q1 -3 0 -6 q6 6 1 12z" fill="#ffb02e" stroke="#e0661a" stroke-width="2"/></svg>`,
   peel: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-linecap="round"><path d="M36 36 L58 58" stroke-width="11"/><path d="M36 36 L58 58" stroke="#b8743c" stroke-width="6"/><circle cx="26" cy="26" r="21" fill="#e9c48f" stroke-width="3"/></g></svg>`,
   cutter: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linecap="round"><path d="M30 34 L54 8" stroke-width="10"/><path d="M30 34 L54 8" stroke="#ff5a5f" stroke-width="5"/><circle cx="24" cy="40" r="18" fill="#dfe3ec"/><circle cx="24" cy="40" r="4" fill="${INK}"/></g></svg>`,
 };
+
+const cheeseIcon = () => ICON.cheese(halloween ? "#f4f1ff" : undefined);
 
 // Paints a topping into a small <canvas>, for the bins, the order ticket and your hand.
 function toppingCanvas(cv, id, cssSize, scale = .38, rot = id === "basil" ? -.5 : 0) {
@@ -152,7 +160,7 @@ function toppingCanvas(cv, id, cssSize, scale = .38, rot = id === "basil" ? -.5 
 const creatureEl = $("creature"), ticketEl = $("ticket"), shelfEl = $("shelf");
 function renderCreature(mood = "wait") {
   creatureEl.innerHTML = monsterSVG(customer.kind, customer.colour, mood);
-  creatureEl.setAttribute("aria-label", order ? `A hungry monster who wants ${orderText(order)} on ${SAUCES[order.sauce].name} sauce. Tap to hear the order.` : "A hungry monster. Make any pizza you like!");
+  creatureEl.setAttribute("aria-label", order ? `A hungry monster who wants ${wanted(order)} on ${sauceOf(order.sauce).name} sauce, ${wantsCheese() ? `with ${cheese()}` : `and no ${cheese()}`}. Tap to hear the order.` : "A hungry monster. Make any pizza you like!");
 }
 // Eight slices, drawn the way the pizza is cut (slice 0 starts at three o'clock and goes clockwise).
 const slicesSVG = `<svg class="slices" viewBox="-15 -15 30 30" aria-hidden="true">${Array.from({ length: 8 }, (_, i) => {
@@ -164,10 +172,11 @@ function renderTicket() {
     ticketEl.innerHTML = `<div class="ticket-title">Order</div><p class="any">Any pizza you like!</p>`;
     return;
   }
-  const s = SAUCES[order.sauce];
+  const s = sauceOf(order.sauce), c = cap(cheese());
   ticketEl.innerHTML = `<div class="ticket-title">Order</div>
     <div class="line sauce-line" data-sauce="${order.sauce}"><span class="swatch" style="background:${s.css}"></span><span>${cap(s.name)} sauce</span></div>
-    ${Object.entries(order.toppings).map(([id, n]) => `<div class="line" data-id="${id}" data-count="${n}" aria-label="${word(n)} ${named(id, n)}"><canvas aria-hidden="true"></canvas><span class="dots" aria-hidden="true">${"<i></i>".repeat(n)}</span><b class="extra" hidden></b></div>`).join("")}
+    <div class="line cheese-line${wantsCheese() ? "" : " none"}" data-cheese="${wantsCheese()}"><span class="ico">${cheeseIcon()}</span><span>${wantsCheese() ? c : `No ${cheese()}`}</span></div>
+    ${Object.entries(order.toppings).map(([id, n]) => `<div class="line" data-id="${id}" data-count="${n}" aria-label="${word(n)} ${name(id, n)}"><canvas aria-hidden="true"></canvas><span class="dots" aria-hidden="true">${"<i></i>".repeat(n)}</span><b class="extra" hidden></b></div>`).join("")}
     <div class="line spread-line" aria-label="Something on every slice">${slicesSVG}<span aria-hidden="true">Every slice</span></div>
     <div class="line no-line" hidden></div>`;
   ticketEl.querySelectorAll(".line[data-id]").forEach(l => toppingCanvas(l.querySelector("canvas"), l.dataset.id, 30, .4));
@@ -188,10 +197,11 @@ function updateTicket() {
   ticketEl.querySelector(".spread-line").classList.toggle("full", !empty.length);
   const sauceLine = ticketEl.querySelector(".sauce-line");
   sauceLine.classList.toggle("full", sauceStatus(order, P.dabs).done);
+  ticketEl.querySelector(".cheese-line").classList.toggle("full", cheeseStatus(order, P.cheese).done);
   const wrong = Object.keys(have).filter(id => !(id in order.toppings));
   const no = ticketEl.querySelector(".no-line");
   no.hidden = !wrong.length;
-  no.innerHTML = wrong.map(id => `<span class="nope"><canvas data-id="${id}" aria-hidden="true"></canvas></span>`).join("") + `<span class="vh">No ${wrong.map(id => named(id, 2)).join(" or ")}</span>`;
+  no.innerHTML = wrong.map(id => `<span class="nope"><canvas data-id="${id}" aria-hidden="true"></canvas></span>`).join("") + `<span class="vh">No ${wrong.map(id => name(id, 2)).join(" or ")}</span>`;
   no.querySelectorAll("canvas").forEach(c => toppingCanvas(c, c.dataset.id, 26, .4));
 }
 function renderShelf() {
@@ -216,8 +226,9 @@ function renderSteps() {
     const now = i === chipOf(P.step);
     li.classList.toggle("now", now);
     li.classList.toggle("done", !now && stageDone(STAGES[i]));
-    // when the sauce is what's stopping the peel, the Sauce chip calls you back
-    li.classList.toggle("need", STAGES[i] === "sauce" && P.step === "top" && !!order && canDecorate() && !sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done);
+    // when the sauce or the cheese is what's stopping the peel, its chip calls you back
+    li.classList.toggle("need", P.step === "top" && !!order && canDecorate() && orderStatus(order, P.toppings).done
+      && (STAGES[i] === "sauce" ? !sauceStatus(order, P.dabs).done : STAGES[i] === "cheese" && sauceStatus(order, P.dabs).done && !cheeseStatus(order, P.cheese).done));
     const b = li.querySelector("button");
     if (now) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
     b.disabled = busy || P.step === "eat";
@@ -229,9 +240,9 @@ function renderTray() {
   const st = P.step;
   let h = "";
   if (st === "roll") h = tool("roll", "Roll", ICON.pin);
-  else if (st === "sauce") h = Object.entries(SAUCES).map(([k, s]) => tool(`ladle-${k}`, `${cap(s.name)} sauce`, ICON.ladle(s.css))).join("") + tool("undo", "Take some off", ICON.undo, "small");
-  else if (st === "cheese") h = tool("cheese", "Cheese", ICON.cheese) + tool("undo", "Take some off", ICON.undo, "small");
-  else if (st === "top") h = TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(t.many)}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${cap(t.one)}</span></button>`).join("")
+  else if (st === "sauce") h = Object.keys(SAUCES).map(k => { const s = sauceOf(k); return tool(`ladle-${k}`, `${cap(s.name)} sauce`, ICON.ladle(s.css)); }).join("") + tool("undo", "Take some off", ICON.undo, "small");
+  else if (st === "cheese") h = tool("cheese", cap(cheese()), cheeseIcon()) + tool("undo", "Take some off", ICON.undo, "small");
+  else if (st === "top") h = TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(name(t.id, 2))}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${halloween ? SPOOKY_TOPPINGS[t.id].label : cap(t.one)}</span></button>`).join("")
     + tool("undo", "Take one off", ICON.undo, "small") + tool("peel", "Peel", ICON.peel, "go");
   else if (st === "bake") h = tool("log", "Wood", ICON.log) + meter + tool("peel", "Peel", ICON.peel, "go");
   else if (st === "cut") h = tool("cutter", "Cutter", ICON.cutter);
@@ -277,7 +288,7 @@ function showHint() {
 const canDecorate = () => P.where === "board" && P.roll >= 1;
 // An order also wants its toppings spread out, with something on every slice.
 const spreadOut = () => !order || !emptySlices(P.toppings).length;
-const readyToBake = () => !order || (sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done && spreadOut());
+const readyToBake = () => !order || (sauceStatus(order, P.dabs).done && cheeseStatus(order, P.cheese).done && orderStatus(order, P.toppings).done && spreadOut());
 // What's stopping the pizza from going to the next place, if anything.
 function notOnBoard() {
   if (P.where !== "board") return P.where === "oven" ? "The pizza is in the oven!" : P.bake >= 1 ? "The pizza is already baked!" : "The pizza isn't on the board!";
@@ -289,7 +300,9 @@ function hintText() {
   switch (P.step) {
     case "roll": return P.roll >= 1 ? "Nice and flat!" : pointerKind === "touch" ? "Rub the rolling pin over the dough" : "Move the rolling pin over the dough";
     case "sauce": return off || (k === "ladle" ? "Tap the pizza to pour on the sauce" : "Pick up a ladle of sauce");
-    case "cheese": return off || (k === "cheese" ? "Tap the pizza to sprinkle the cheese" : "Pick up the cheese");
+    case "cheese":
+      if (!off && !wantsCheese()) return P.cheese.length ? `No ${cheese()} for this monster! Take it off` : `No ${cheese()} for this monster! On to the toppings`;
+      return off || (k === "cheese" ? `Tap the pizza to sprinkle the ${cheese()}` : `Pick up the ${cheese()}`);
     case "top":
       if (k === "peel") return off || "Tap the pizza to slide the peel under it";
       if (off || k === "topping") return off || "Tap the pizza to put it down";
@@ -343,7 +356,7 @@ function goTo(step) {
   if (busy || P.step === "eat" || step === P.step) return;
   audio();
   setStep(step);
-  say(step === "top" && order && canDecorate() ? `${cap(orderText(order))}. ${hintText()}.` : hintText());
+  say(step === "top" && order && canDecorate() ? `${cap(wanted(order))}. ${hintText()}.` : hintText());
 }
 
 // ---------- the kitchen ----------
@@ -525,8 +538,8 @@ function renderHeld() {
     const r = L.board.r * .92 * .84 * TOPPING_SIZE, size = Math.ceil(r / .38);
     const cnv = document.createElement("canvas"); toppingCanvas(cnv, held.id, size, .38, 0); heldEl.replaceChildren(cnv);
     c = [size / 2, size / 2];
-  } else if (k === "ladle") c = svgHeld(ICON.ladle(SAUCES[held.id].css), ts(L.board.r * .42));
-  else if (k === "cheese") c = svgHeld(ICON.cheese, ts(L.board.r * .36));
+  } else if (k === "ladle") c = svgHeld(ICON.ladle(sauceOf(held.id).css), ts(L.board.r * .42));
+  else if (k === "cheese") c = svgHeld(cheeseIcon(), ts(L.board.r * .36));
   else if (k === "log") c = svgHeld(ICON.log, ts(L.oven.s * .3));
   else if (k === "cutter") c = svgHeld(ICON.cutter, ts(L.counter.cut.r * .55));
   else if (k === "peel") {
@@ -575,7 +588,8 @@ function toggleTool(kind, id, btn, byKeyboard) {
   if (held?.kind === kind && (held.id ?? null) === id) return putAway();
   hold(kind, id, ...fromButton(btn, byKeyboard));
   tone(600, 0, .1, "sine", .12, 900);
-  if (kind === "ladle") say(`${cap(SAUCES[id].name)} sauce`);
+  if (kind === "ladle") say(`${cap(sauceOf(id).name)} sauce`);
+  if (kind === "cheese") say(cap(cheese()));
 }
 
 // ---------- tapping in the kitchen ----------
@@ -669,7 +683,7 @@ function undo() {
     sfx.pop(); updateTicket(); updateTray();
   } else if (P.step === "cheese" && P.handfuls.length) {
     P.cheese.splice(P.cheese.length - P.handfuls.pop());
-    sfx.pop(); updateTray();
+    sfx.pop(); updateTicket(); updateTray();
   } else if (P.step === "top" && P.toppings.length) removeTopping(P.toppings.length - 1);
 }
 
@@ -715,7 +729,7 @@ function pour(u) {
 // In Orders mode, pouring a sauce that isn't on the order gets a gentle word from the monster.
 function sauceCheck(k) {
   if (!order || k === order.sauce) return;
-  say(`Hmm, no ${SAUCES[k].name} for this monster! It wants ${SAUCES[order.sauce].name}. Take some off.`);
+  say(`Hmm, no ${sauceOf(k).name} for this monster! It wants ${sauceOf(order.sauce).name}. Take some off.`);
 }
 // A handful of cheese falls where you tap.
 function sprinkleAt(u) {
@@ -731,7 +745,10 @@ function sprinkleAt(u) {
       P.cheese.push({ x, y, a: Math.random() * Math.PI, l: .07 + Math.random() * .05, spot: Math.random() < .08 });
       P.handfuls[n]++;
     }
-    if (b === 4) updateTray();
+    if (b === 4) {
+      updateTicket(); updateTray();
+      if (order && !wantsCheese()) say(`Hmm, no ${cheese()} for this monster! Take it off.`);
+    }
   }, reduce ? 0 : b * 45);
 }
 
@@ -748,7 +765,7 @@ function tapBin(id, bin, byKeyboard) {
   }
   hold("topping", id, ...fromButton(bin, byKeyboard), Math.random() * Math.PI * 2);
   tone(600, 0, .1, "sine", .12, 900);
-  say(cap(TOPPING[id].one));
+  say(cap(name(id, 1)));
 }
 function putDown(u) {
   const t = { id: held.id, x: u.x, y: u.y, rot: held.rot };
@@ -759,14 +776,14 @@ function landTopping(t) {
   P.toppings.push(t);
   sfx.plop();
   const n = countToppings(P.toppings)[t.id];
-  if (!order) say(`${word(n)} ${named(t.id, n)}`);
+  if (!order) say(`${word(n)} ${name(t.id, n)}`);
   else {
     const st = orderStatus(order, P.toppings), want = order.toppings[t.id];
-    if (!want) say(`Oh no, no ${named(t.id, 2)} for this monster! Take it off.`);
-    else if (n > want) say(`Oops, too many ${named(t.id, 2)}! Take one off.`);
+    if (!want) say(`Oh no, no ${name(t.id, 2)} for this monster! Take it off.`);
+    else if (n > want) say(`Oops, too many ${name(t.id, 2)}! Take one off.`);
     else if (st.done && !spreadOut()) say(`${cap(word(n))}! But ${slicesLeft()}. Move a topping there.`);
     else if (st.done) { say(`${cap(word(n))}! That's just right.${readyToBake() ? " Pick up the peel!" : ""}`); hop(); }
-    else if (n === want) { const id = st.missing.find(i => !st.extra.includes(i)) ?? st.missing[0]; say(id ? `${cap(word(n))}! Now ${word(order.toppings[id])} ${named(id, order.toppings[id])}.` : cap(word(n))); }
+    else if (n === want) { const id = st.missing.find(i => !st.extra.includes(i)) ?? st.missing[0]; say(id ? `${cap(word(n))}! Now ${word(order.toppings[id])} ${name(id, order.toppings[id])}.` : cap(word(n))); }
     else say(cap(word(n)));
   }
   updateTicket(); updateTray();
@@ -780,15 +797,17 @@ function removeTopping(i) {
   updateTicket(); updateTray();
 }
 function notReady() {
-  const want = SAUCES[order.sauce];
-  const sauce = sauceStatus(order, P.dabs);
-  if (sauce.extra.length) return `Not yet! No ${SAUCES[sauce.extra[0]].name} for this monster. Take it off.`;
+  const want = sauceOf(order.sauce);
+  const sauce = sauceStatus(order, P.dabs), ch = cheeseStatus(order, P.cheese);
+  if (sauce.extra.length) return `Not yet! No ${sauceOf(sauce.extra[0]).name} for this monster. Take it off.`;
   if (sauce.missing) return `Not yet! It needs ${want.name} sauce.`;
+  if (ch.extra) return `Not yet! No ${cheese()} for this monster. Take it off.`;
+  if (ch.missing) return `Not yet! It needs ${cheese()}.`;
   const st = orderStatus(order, P.toppings);
-  if (st.extra.length) return `Not yet! Too many ${named(st.extra[0], 2)}.`;
+  if (st.extra.length) return `Not yet! Too many ${name(st.extra[0], 2)}.`;
   if (st.done) return `Not yet! ${cap(slicesLeft())}. Move a topping there.`;
   const id = st.missing[0], need = order.toppings[id] - (countToppings(P.toppings)[id] || 0);
-  return `Not yet! It needs ${word(need)} more ${named(id, need)}.`;
+  return `Not yet! It needs ${word(need)} more ${name(id, need)}.`;
 }
 function slicesLeft() {
   const n = emptySlices(P.toppings).length;
@@ -952,7 +971,7 @@ function nextCustomer(quiet) {
   if (!quiet) greet();
 }
 function greet() {
-  if (order) say(`Hello! Can I have a pizza with ${orderText(order)}, please? First, roll the dough!`);
+  if (order) say(`Hello! Can I have a pizza with ${wanted(order)}${wantsCheese() ? "" : `, and no ${cheese()}`}, please? First, roll the dough!`);
   else say("Hello! Make me any pizza you like. First, roll the dough!");
 }
 
@@ -1085,8 +1104,9 @@ $("spooky").onclick = () => {
   applyHalloween();
   renderCreature(P.step === "eat" ? "happy" : "wait");
   renderShelf();
-  tray.querySelectorAll(".bin").forEach(b => toppingCanvas(b.querySelector("canvas"), b.dataset.id, 46));
+  renderTray();
   renderTicket();
+  clearSauce(sauceCv); paintDabs(sauceCv, P.dabs); lastSig = null;
   if (held) renderHeld();
   say(halloween ? "Happy Halloween!" : "No more Halloween.");
 };

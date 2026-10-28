@@ -18,9 +18,10 @@ const dotsOn = (page, id) => page.locator(`.line[data-id="${id}"] .dots i.on`);
 
 async function readOrder(page) {
   const sauce = await page.locator(".sauce-line").getAttribute("data-sauce");
+  const cheese = await page.locator(".cheese-line").getAttribute("data-cheese") === "true";
   const toppings = {};
   for (const l of await page.locator(".ticket .line[data-id]").all()) toppings[await l.getAttribute("data-id")] = +(await l.getAttribute("data-count"));
-  return { sauce, toppings };
+  return { sauce, cheese, toppings };
 }
 
 // The kitchen as the game lays it out, with the given station in focus, in page coordinates.
@@ -54,13 +55,15 @@ async function tapSpots(page, n, from = 0) {
   const k = await kitchen(page, "board");
   for (let i = from; i < from + n; i++) await tap(page, k.board(...spot(i)));
 }
-// As much sauce and cheese as we like, then on to the toppings by tapping the stage chips.
-async function sauceAndCheese(page, sauce = "tomato") {
+// As much sauce and cheese (if any) as we like, then on to the toppings by tapping the stage chips.
+async function sauceAndCheese(page, sauce = "tomato", cheese = true) {
   await tool(page, sauce === "tomato" ? "Tomato sauce" : "Pesto sauce").click();
   await tapSpots(page, 4);
-  await chip(page, "Cheese").click();
-  await tool(page, "Cheese").click();
-  await tapSpots(page, 3);
+  if (cheese) {
+    await chip(page, "Cheese").click();
+    await tool(page, "Cheese").click();
+    await tapSpots(page, 3);
+  }
   await chip(page, "Toppings").click();
   await expect.poll(() => step(page)).toBe("top");
 }
@@ -112,10 +115,10 @@ test.describe("with reduced motion", () => {
   test("making the pizza on the order, baking, cutting, boxing and serving it", async ({ page }) => {
     const order = await readOrder(page);
     await roll(page);
-    await sauceAndCheese(page, order.sauce);
+    await sauceAndCheese(page, order.sauce, order.cheese);
     let n = 0;
     for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
-    await expect(page.locator(".ticket .line.full")).toHaveCount(2 + Object.keys(order.toppings).length);
+    await expect(page.locator(".ticket .line.full")).toHaveCount(3 + Object.keys(order.toppings).length);
     await bake(page);
     await cutBoxServe(page);
     await expect(page.locator("#shelf > div")).toHaveCount(1, { timeout: 10_000 });
@@ -133,6 +136,9 @@ test.describe("with reduced motion", () => {
     await tapSpots(page, 1, 2);
     await expect(page.locator("#announce")).toContainText("for this monster");
     await expect(page.locator(".sauce-line.full")).toHaveCount(0);
+    await chip(page, "Cheese").click();                      // the first monsters always want cheese
+    await tool(page, "Cheese").click();
+    await tapSpots(page, 2);
     await chip(page, "Toppings").click();
     let n = 0;
     for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
@@ -178,7 +184,7 @@ test.describe("with reduced motion", () => {
   test("toppings are picked up and put down by hand, and can be moved", async ({ page }) => {
     const order = await readOrder(page);
     await roll(page);
-    await sauceAndCheese(page, order.sauce);
+    await sauceAndCheese(page, order.sauce, order.cheese);
     const [id] = Object.keys(order.toppings);
     const k = await kitchen(page, "board");
     await tool(page, binName[id]).click();
@@ -199,7 +205,7 @@ test.describe("with reduced motion", () => {
   test("too many toppings must come off before the peel will take the pizza", async ({ page }) => {
     const order = await readOrder(page);
     await roll(page);
-    await sauceAndCheese(page, order.sauce);
+    await sauceAndCheese(page, order.sauce, order.cheese);
     const [id] = Object.keys(order.toppings);
     let n = 0;
     for (const [k, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) await decorate(page, k, n++);
@@ -218,7 +224,7 @@ test.describe("with reduced motion", () => {
   test("the toppings must be spread out, with something on every slice", async ({ page }) => {
     const order = await readOrder(page);
     await roll(page);
-    await sauceAndCheese(page, order.sauce);
+    await sauceAndCheese(page, order.sauce, order.cheese);
     const pile = async () => (await kitchen(page, "board")).board(.45, .18);   // all in one slice
     for (const [id, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) { await tool(page, binName[id]).click(); await tap(page, await pile()); }
     await expect(page.locator(".ticket .line[data-id].full")).toHaveCount(Object.keys(order.toppings).length);
@@ -237,6 +243,28 @@ test.describe("with reduced motion", () => {
     await expect(page.locator(".spread-line")).toHaveClass(/full/);
     await expect(page.locator("#tool-peel.pulse")).toBeVisible();
     await bake(page);
+  });
+
+  test("the cheese is on the order, and the peel waits for it", async ({ page }) => {
+    const order = await readOrder(page);
+    expect(order.cheese).toBe(true);                   // the first monsters always want cheese
+    await expect(page.locator(".cheese-line")).toHaveText("Cheese");
+    await roll(page);
+    await sauceAndCheese(page, order.sauce, false);
+    let n = 0;
+    for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
+    await expect(page.locator(".cheese-line")).not.toHaveClass(/full/);
+    await expect(chip(page, "Cheese").locator("xpath=..")).toHaveClass(/need/);
+    await tool(page, "Peel").click();
+    await tap(page, (await kitchen(page, "board")).board());
+    await expect(page.locator("#announce")).toContainText("It needs cheese");
+    await tool(page, "Peel").click();
+    await chip(page, "Cheese").click();
+    await tool(page, "Cheese").click();
+    await tapSpots(page, 2);
+    await expect(page.locator(".cheese-line")).toHaveClass(/full/);
+    await chip(page, "Toppings").click();
+    await expect(page.locator("#tool-peel.pulse")).toBeVisible();
   });
 
   test("free play, all by keyboard, and five pizzas make a party", async ({ page }) => {
@@ -308,6 +336,23 @@ test.describe("at Halloween", () => {
     await page.clock.setFixedTime(new Date(2026, 9, 31, 18, 0));
     await page.goto("/");
     await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("every ingredient has a spooky version", async ({ page }) => {
+    await page.goto("/?halloween=1");
+    await expect(page.locator(".sauce-line")).toContainText(/Pumpkin sauce|Slime sauce/);
+    await expect(page.locator(".cheese-line")).toHaveText("Cobweb cheese");
+    await roll(page);
+    await expect(tool(page, "Pumpkin sauce")).toBeVisible();
+    await expect(tool(page, "Slime sauce")).toBeVisible();
+    await chip(page, "Cheese").click();
+    await expect(tool(page, "Cobweb cheese")).toBeVisible();
+    await chip(page, "Toppings").click();
+    for (const name of ["Pumpkin pepperonis", "Ghost mushrooms", "Spider olives", "Eyeball peppers", "Candy corn pineapples", "Basil bats"])
+      await expect(tool(page, name)).toBeVisible();
+    await spooky(page).click();                        // and back again, straight away
+    await expect(tool(page, "Mushrooms")).toBeVisible();
+    await expect(page.locator(".cheese-line")).toHaveText("Cheese");
   });
 
   test("the top bar still fits on a small phone", async ({ page }) => {
