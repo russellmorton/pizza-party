@@ -9,11 +9,11 @@ A pizza making game for a four-year-old. A hungry monster comes to the counter w
 5. **Cut:** pick up the cutter and tap the edge of the pizza; each cut runs through the middle from where you tap. Four cuts make eight slices.
 6. **Serve:** tap the pizza to pick it up and tap the box to put it in. Then pick up the box and give it to the monster, who opens it and gobbles up every slice.
 
-The stage chips along the top (Roll, Sauce, Cheese, Toppings, Bake, Cut, Serve) are buttons: tap one to go to that stage at any time, for example back to the sauce after the toppings are on. Each stage's tools only work where the pizza actually is, and the game moves on by itself when a stage is finished (rolled flat, in the oven, out on the board, cut into eight). In Orders mode the peel won't lift the pizza until it has the ordered sauce (and no other) and the right toppings.
+The stage chips along the top (Roll, Sauce, Cheese, Toppings, Bake, Cut, Serve) are buttons: tap one to go to that stage at any time, for example back to the sauce after the toppings are on. Each stage's tools only work where the pizza actually is, and the game moves on by itself when a stage is finished (rolled flat, in the oven, out on the board, cut into eight). In Orders mode the peel won't lift the pizza until it has the ordered sauce (and no other), the right toppings, and something on every slice.
 
 Tools stay in your hand until you put them back (tap their button again); a topping or a log is one at a time. With a keyboard, Enter on a tool picks it up and Enter on the kitchen uses it.
 
-- **Orders:** each monster wants a sauce and a number of toppings, shown on its order ticket as pictures and dots. Orders start with one kind of topping and grow to three. Every fifth monster throws a pizza party.
+- **Orders:** each monster wants a sauce and toppings, shown on its order ticket as pictures and dots, in amounts a real pizza would have: eight to ten of one topping, four to six each of two, or three to five each of three. Orders start with one kind of topping and grow to three. The toppings have to be spread out, too: while you decorate, dashed lines show where the eight slices will be, the ticket's "Every slice" pie fills in, and once the count is right any bare slice glows until a topping is moved onto it. Every fifth monster throws a pizza party.
 - **Free play:** make any pizza you like.
 - **At Halloween** (all of October) the tablecloth turns purple and orange, the monsters come in costume (a witch's hat, bat wings, a jack-o'-lantern on an antenna or vampire fangs), the pepperoni is carved like jack-o'-lanterns, the olives become little spiders, and every fifth monster throws a Spooky Pizza Party. The pumpkin button in the top bar turns it on or off on any day and is remembered; `?halloween=1` or `?halloween=0` in the address overrides both.
 
@@ -39,7 +39,7 @@ npm test           # both
 ## Layout
 
 - `index.html`: markup and styles
-- `src/pizza.js`: the rules (orders, topping placement, sauce coverage, rolling and baking)
+- `src/pizza.js`: the rules (orders, topping placement and spread, sauce coverage, rolling and baking)
 - `src/kitchen.js`: where the board, oven and counter go, and which one a tap lands on
 - `src/draw.js`: canvas drawing for the board, pizza, toppings, oven, peel, counter and box
 - `src/monster.js`: the monster customers

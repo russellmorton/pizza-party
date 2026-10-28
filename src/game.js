@@ -1,6 +1,6 @@
 import {
   TOPPINGS, TOPPING, SAUCES, MAX_TOPPINGS, ROLL_DRAG,
-  makeOrder, orderText, countToppings, orderStatus, sauceStatus, spotFor, hitTopping, cutFor,
+  makeOrder, orderText, countToppings, orderStatus, sauceStatus, emptySlices, spotFor, hitTopping, cutFor,
   makeCoverage, dab, gaps, doughSize, bakeTick, coolTick, addLog, word, named,
 } from "./pizza.js";
 import {
@@ -154,6 +154,11 @@ function renderCreature(mood = "wait") {
   creatureEl.innerHTML = monsterSVG(customer.kind, customer.colour, mood);
   creatureEl.setAttribute("aria-label", order ? `A hungry monster who wants ${orderText(order)} on ${SAUCES[order.sauce].name} sauce. Tap to hear the order.` : "A hungry monster. Make any pizza you like!");
 }
+// Eight slices, drawn the way the pizza is cut (slice 0 starts at three o'clock and goes clockwise).
+const slicesSVG = `<svg class="slices" viewBox="-15 -15 30 30" aria-hidden="true">${Array.from({ length: 8 }, (_, i) => {
+  const at = k => `${(13 * Math.cos(k * Math.PI / 4)).toFixed(2)} ${(13 * Math.sin(k * Math.PI / 4)).toFixed(2)}`;
+  return `<path d="M0 0L${at(i)}A13 13 0 0 1 ${at(i + 1)}Z"/>`;
+}).join("")}</svg>`;
 function renderTicket() {
   if (!order) {
     ticketEl.innerHTML = `<div class="ticket-title">Order</div><p class="any">Any pizza you like!</p>`;
@@ -163,6 +168,7 @@ function renderTicket() {
   ticketEl.innerHTML = `<div class="ticket-title">Order</div>
     <div class="line sauce-line" data-sauce="${order.sauce}"><span class="swatch" style="background:${s.css}"></span><span>${cap(s.name)} sauce</span></div>
     ${Object.entries(order.toppings).map(([id, n]) => `<div class="line" data-id="${id}" data-count="${n}" aria-label="${word(n)} ${named(id, n)}"><canvas aria-hidden="true"></canvas><span class="dots" aria-hidden="true">${"<i></i>".repeat(n)}</span><b class="extra" hidden></b></div>`).join("")}
+    <div class="line spread-line" aria-label="Something on every slice">${slicesSVG}<span aria-hidden="true">Every slice</span></div>
     <div class="line no-line" hidden></div>`;
   ticketEl.querySelectorAll(".line[data-id]").forEach(l => toppingCanvas(l.querySelector("canvas"), l.dataset.id, 30, .4));
   updateTicket();
@@ -177,6 +183,9 @@ function updateTicket() {
     x.hidden = n <= want; x.textContent = `+${n - want}`;
     l.classList.toggle("full", n === want);
   });
+  const empty = emptySlices(P.toppings);
+  ticketEl.querySelectorAll(".spread-line path").forEach((s, i) => s.classList.toggle("on", !empty.includes(i)));
+  ticketEl.querySelector(".spread-line").classList.toggle("full", !empty.length);
   const sauceLine = ticketEl.querySelector(".sauce-line");
   sauceLine.classList.toggle("full", sauceStatus(order, P.dabs).done);
   const wrong = Object.keys(have).filter(id => !(id in order.toppings));
@@ -266,7 +275,9 @@ function showHint() {
   hint.classList.toggle("said", fresh);
 }
 const canDecorate = () => P.where === "board" && P.roll >= 1;
-const readyToBake = () => !order || (sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done);
+// An order also wants its toppings spread out, with something on every slice.
+const spreadOut = () => !order || !emptySlices(P.toppings).length;
+const readyToBake = () => !order || (sauceStatus(order, P.dabs).done && orderStatus(order, P.toppings).done && spreadOut());
 // What's stopping the pizza from going to the next place, if anything.
 function notOnBoard() {
   if (P.where !== "board") return P.where === "oven" ? "The pizza is in the oven!" : P.bake >= 1 ? "The pizza is already baked!" : "The pizza isn't on the board!";
@@ -427,7 +438,7 @@ function draw(now, ovenLive) {
   drawCounter(ctx, L.counter);
   const cut = L.counter.cut;
   drawBoard(ctx, cut.x, cut.y, cut.r);
-  const g = pizzaAt(), pz = { ...P, sauceImg: sauceCv, cutAnim };
+  const g = pizzaAt(), pz = { ...P, sauceImg: sauceCv, cutAnim, guide: sliceGuide() };
   const pizzaHere = () => {
     ctx.save();
     ctx.translate(g.x, g.y); ctx.scale(1, g.sq); ctx.translate(-g.x, -g.y);
@@ -450,6 +461,13 @@ function draw(now, ovenLive) {
     ctx.strokeStyle = `rgba(255,255,255,${1 - k})`; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1 + k), 0, Math.PI * 2); ctx.stroke();
   }
+}
+
+// While decorating an order, faint lines show where the slices will be; once the toppings
+// are counted out, any slice still bare glows.
+function sliceGuide() {
+  if (!order || P.step !== "top" || !canDecorate()) return null;
+  return { empty: orderStatus(order, P.toppings).done ? emptySlices(P.toppings) : [] };
 }
 
 // The dashed ring showing where the thing in your hand can go.
@@ -746,6 +764,7 @@ function landTopping(t) {
     const st = orderStatus(order, P.toppings), want = order.toppings[t.id];
     if (!want) say(`Oh no, no ${named(t.id, 2)} for this monster! Take it off.`);
     else if (n > want) say(`Oops, too many ${named(t.id, 2)}! Take one off.`);
+    else if (st.done && !spreadOut()) say(`${cap(word(n))}! But ${slicesLeft()}. Move a topping there.`);
     else if (st.done) { say(`${cap(word(n))}! That's just right.${readyToBake() ? " Pick up the peel!" : ""}`); hop(); }
     else if (n === want) { const id = st.missing.find(i => !st.extra.includes(i)) ?? st.missing[0]; say(id ? `${cap(word(n))}! Now ${word(order.toppings[id])} ${named(id, order.toppings[id])}.` : cap(word(n))); }
     else say(cap(word(n)));
@@ -767,8 +786,13 @@ function notReady() {
   if (sauce.missing) return `Not yet! It needs ${want.name} sauce.`;
   const st = orderStatus(order, P.toppings);
   if (st.extra.length) return `Not yet! Too many ${named(st.extra[0], 2)}.`;
+  if (st.done) return `Not yet! ${cap(slicesLeft())}. Move a topping there.`;
   const id = st.missing[0], need = order.toppings[id] - (countToppings(P.toppings)[id] || 0);
   return `Not yet! It needs ${word(need)} more ${named(id, need)}.`;
+}
+function slicesLeft() {
+  const n = emptySlices(P.toppings).length;
+  return n === 1 ? "one slice has nothing on it" : `${word(n)} slices have nothing on them`;
 }
 
 // ---------- step 4: into the oven with the peel ----------

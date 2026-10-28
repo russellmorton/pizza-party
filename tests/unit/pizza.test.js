@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOPPINGS, TOPPING, MAX_TOPPINGS, makeOrder, orderText, countToppings, orderStatus, sauceStatus, spotFor, hitTopping,
+  TOPPINGS, TOPPING, MAX_TOPPINGS, PORTIONS, makeOrder, orderText, countToppings, orderStatus, sauceStatus, sliceOf, emptySlices, spotFor, hitTopping,
   makeCoverage, dab, coverage, gaps, cutFor, doughSize, lumpiness, bakeTick, coolTick, addLog,
 } from "../../src/pizza.js";
 
@@ -9,16 +9,18 @@ import {
 function rng(seed = 1) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
 const total = o => Object.values(o.toppings).reduce((a, n) => a + n, 0);
 
-test("first orders are small: one kind of topping, up to three", () => {
-  const r = rng(3);
+test("first orders are one kind of topping, and plenty of it, like a real pizza", () => {
+  const r = rng(3), seen = new Set();
   for (let i = 0; i < 200; i++) {
     const o = makeOrder(0, r);
     assert.equal(Object.keys(o.toppings).length, 1);
-    assert.ok(total(o) >= 1 && total(o) <= 3);
+    assert.ok(total(o) >= 8 && total(o) <= 10);
+    seen.add(total(o));
   }
+  assert.deepEqual([...seen].sort((a, b) => a - b), [8, 9, 10]);
 });
 
-test("later orders grow but always fit on the pizza", () => {
+test("later orders have up to three kinds, a few of each, and always fit on the pizza", () => {
   const r = rng(5);
   let most = 0;
   for (let i = 0; i < 500; i++) {
@@ -26,12 +28,18 @@ test("later orders grow but always fit on the pizza", () => {
     const kinds = Object.keys(o.toppings);
     assert.ok(kinds.length >= 1 && kinds.length <= 3);
     assert.equal(new Set(kinds).size, kinds.length);
-    for (const [id, n] of Object.entries(o.toppings)) { assert.ok(id in TOPPING); assert.ok(n >= 1 && n <= 5); }
+    const [few, many] = PORTIONS[kinds.length];
+    for (const [id, n] of Object.entries(o.toppings)) { assert.ok(id in TOPPING); assert.ok(n >= few && n <= many); }
+    assert.ok(total(o) >= 8, "enough for a topping on every slice");
     assert.ok(total(o) <= MAX_TOPPINGS);
     assert.ok(o.sauce === "tomato" || o.sauce === "pesto");
     most = Math.max(most, kinds.length);
   }
   assert.equal(most, 3);
+});
+
+test("no order asks for just one or two of a topping", () => {
+  for (const [few] of Object.values(PORTIONS)) assert.ok(few >= 3);
 });
 
 test("orders read like a sentence", () => {
@@ -59,6 +67,30 @@ test("sauces can be mixed, but an order needs its own sauce and no other", () =>
   assert.equal(sauceStatus(order, [d("tomato"), d("tomato")]).done, true);
   assert.deepEqual(sauceStatus(order, [d("tomato"), d("pesto")]), { done: false, missing: false, extra: ["pesto"] });
   assert.deepEqual(sauceStatus(order, [d("pesto")]), { done: false, missing: true, extra: ["pesto"] });
+});
+
+test("the pizza has eight slices, the way the cutter cuts it", () => {
+  assert.equal(sliceOf(1, .1), 0);            // just past three o'clock
+  assert.equal(sliceOf(.1, 1), 1);            // just before six o'clock (y points down)
+  assert.equal(sliceOf(-1, .1), 3);
+  assert.equal(sliceOf(-1, -.1), 4);
+  assert.equal(sliceOf(1, -.1), 7);
+  for (let i = 0; i < 8; i++) { const a = (i + .5) * Math.PI / 4; assert.equal(sliceOf(Math.cos(a), Math.sin(a)), i); }
+});
+
+test("an order wants something on every slice", () => {
+  const at = (i, r = .5) => { const a = (i + .5) * Math.PI / 4; return { id: "olive", x: Math.cos(a) * r, y: Math.sin(a) * r }; };
+  assert.deepEqual(emptySlices([]), [0, 1, 2, 3, 4, 5, 6, 7]);
+  const bunched = Array.from({ length: 8 }, (_, i) => at(2, .2 + i * .07));
+  assert.deepEqual(emptySlices(bunched), [0, 1, 3, 4, 5, 6, 7]);
+  assert.deepEqual(emptySlices([0, 1, 2, 3, 4, 5, 6].map(i => at(i))), [7]);
+  assert.deepEqual(emptySlices([0, 1, 2, 3, 4, 5, 6, 7].map(i => at(i))), []);
+});
+
+test("toppings put down for you go on a slice that has none yet", () => {
+  const r = rng(11), placed = [];
+  for (let i = 0; i < 8; i++) placed.push(spotFor(placed, r));
+  assert.deepEqual(emptySlices(placed), []);
 });
 
 test("toppings land on the pizza and spread out", () => {

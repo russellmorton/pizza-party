@@ -115,7 +115,7 @@ test.describe("with reduced motion", () => {
     await sauceAndCheese(page, order.sauce);
     let n = 0;
     for (const [id, count] of Object.entries(order.toppings)) for (let i = 0; i < count; i++) await decorate(page, id, n++);
-    await expect(page.locator(".ticket .line.full")).toHaveCount(1 + Object.keys(order.toppings).length);
+    await expect(page.locator(".ticket .line.full")).toHaveCount(2 + Object.keys(order.toppings).length);
     await bake(page);
     await cutBoxServe(page);
     await expect(page.locator("#shelf > div")).toHaveCount(1, { timeout: 10_000 });
@@ -213,6 +213,30 @@ test.describe("with reduced motion", () => {
     await tool(page, "Take one off").click();          // takes the extra topping off
     await expect(page.locator(`.line[data-id="${id}"] .extra`)).toBeHidden();
     await expect(page.locator("#tool-peel.pulse")).toBeVisible();
+  });
+
+  test("the toppings must be spread out, with something on every slice", async ({ page }) => {
+    const order = await readOrder(page);
+    await roll(page);
+    await sauceAndCheese(page, order.sauce);
+    const pile = async () => (await kitchen(page, "board")).board(.45, .18);   // all in one slice
+    for (const [id, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) { await tool(page, binName[id]).click(); await tap(page, await pile()); }
+    await expect(page.locator(".ticket .line[data-id].full")).toHaveCount(Object.keys(order.toppings).length);
+    await expect(page.locator(".spread-line .slices path.on")).toHaveCount(1);
+    await expect(page.locator(".spread-line")).not.toHaveClass(/full/);
+    await tool(page, "Peel").click();
+    await tap(page, (await kitchen(page, "board")).board());
+    await expect(page.locator("#announce")).toContainText("Seven slices have nothing on them");
+    expect(await step(page)).toBe("top");
+    await tool(page, "Peel").click();                  // put the peel back
+    for (let i = 1; i < 8; i++) {                      // move one from the pile onto each bare slice
+      const a = (i + .5) * Math.PI / 4;
+      await tap(page, await pile());
+      await tap(page, (await kitchen(page, "board")).board(Math.cos(a) * .4, Math.sin(a) * .4));
+    }
+    await expect(page.locator(".spread-line")).toHaveClass(/full/);
+    await expect(page.locator("#tool-peel.pulse")).toBeVisible();
+    await bake(page);
   });
 
   test("free play, all by keyboard, and five pizzas make a party", async ({ page }) => {

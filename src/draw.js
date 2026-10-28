@@ -266,6 +266,20 @@ export function drawPizza(ctx, cx, cy, R, p) {
       for (const c of p.cheese) if (c.spot) { ctx.beginPath(); ctx.ellipse(cx + c.x * Rs, cy + c.y * Rs, Rs * .03, Rs * .02, c.a, 0, TAU); ctx.fill(); }
     }
   }
+  if (p.guide) {
+    // bare slices glow, with the same orange dashes as anywhere else a thing can go
+    ctx.save();
+    ctx.fillStyle = "rgba(255,240,170,.55)"; ctx.strokeStyle = "#ffb02e"; ctx.lineWidth = Math.max(3, R * .02); ctx.lineJoin = "round";
+    ctx.setLineDash([R * .05, R * .035]);
+    for (const i of p.guide.empty) { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, Rs * .97, i * TAU / 8, (i + 1) * TAU / 8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+    ctx.save();
+    ctx.setLineDash([R * .04, R * .04]); ctx.strokeStyle = "rgba(255,255,255,.6)"; ctx.lineWidth = Math.max(1.5, R * .012);
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) { const a = k * TAU / 8; ctx.moveTo(cx - Math.cos(a) * Rs, cy - Math.sin(a) * Rs); ctx.lineTo(cx + Math.cos(a) * Rs, cy + Math.sin(a) * Rs); }
+    ctx.stroke();
+    ctx.restore();
+  }
   for (const t of p.toppings || []) drawTopping(ctx, t.id, cx + t.x * Rs, cy + t.y * Rs, Rs * TOPPING_SIZE, t.rot, bake);
   // slices
   const cut = (a, from, to) => {

@@ -30,12 +30,16 @@ function shuffle(a, rand) {
   return a;
 }
 
-// Orders start small (one kind, up to three) and grow to three kinds of up to five.
+// How many of each kind a real pizza gets: plenty of one topping, or a few each of two
+// or three. There's always enough for a topping on every slice.
+export const PORTIONS = { 1: [8, 10], 2: [4, 6], 3: [3, 5] };
+
+// Orders start with one kind of topping and grow to three.
 export function makeOrder(served = 0, rand = Math.random) {
   const kinds = served < 2 ? 1 : served < 6 ? 1 + (rand() < .6) : 1 + (rand() * 3 | 0);
-  const most = served < 2 ? 3 : served < 6 ? 4 : 5;
+  const [few, most] = PORTIONS[kinds];
   const ids = shuffle(TOPPINGS.map(t => t.id), rand).slice(0, kinds);
-  const toppings = Object.fromEntries(ids.map(id => [id, 1 + (rand() * most | 0)]));
+  const toppings = Object.fromEntries(ids.map(id => [id, few + (rand() * (most - few + 1) | 0)]));
   return { sauce: rand() < .7 ? "tomato" : "pesto", toppings };
 }
 
@@ -67,14 +71,27 @@ export function orderStatus(order, placed) {
   return { done: !missing.length && !extra.length, missing, extra };
 }
 
-// Somewhere roomy for the next topping: the best of a handful of random spots.
+// The pizza is cut into eight slices, the same way the cutter cuts it: slice i runs from
+// i/8 of the way round to (i + 1)/8. An order wants its toppings spread so that every
+// slice gets at least one; these are the slices with none.
+export const sliceOf = (x, y) => Math.floor(((Math.atan2(y, x) / (Math.PI / 4)) % 8 + 8) % 8);
+export function emptySlices(placed) {
+  const has = Array(8).fill(false);
+  for (const t of placed) has[sliceOf(t.x, t.y)] = true;
+  return has.flatMap((h, i) => h ? [] : [i]);
+}
+
+// Somewhere roomy for the next topping, on a slice that has none yet if there is one:
+// the best of a handful of random spots.
 export function spotFor(placed, rand = Math.random, reach = .78) {
+  const empty = new Set(emptySlices(placed));
   let best = null, bestD = -1;
   for (let i = 0; i < 30; i++) {
     const a = rand() * Math.PI * 2, r = reach * Math.sqrt(rand());
     const x = Math.cos(a) * r, y = Math.sin(a) * r;
     let d = Infinity;
     for (const t of placed) d = Math.min(d, Math.hypot(t.x - x, t.y - y));
+    if (empty.has(sliceOf(x, y))) d += 10;
     if (d > bestD) { bestD = d; best = { x, y }; }
   }
   return best;
