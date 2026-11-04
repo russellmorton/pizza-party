@@ -5,7 +5,7 @@ let errors;
 test.beforeEach(async ({ page }) => {
   errors = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.goto("/?halloween=0&christmas=0");   // Halloween (October) and Christmas (December) have their own tests at the end
+  await page.goto("/?halloween=0&christmas=0");   // Halloween (October) and Christmas (12 November to 6 January) have their own tests at the end
 });
 test.afterEach(() => expect(errors).toEqual([]));
 

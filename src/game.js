@@ -112,7 +112,7 @@ function renderTitle() {
 }
 
 // ---------- Halloween and Christmas ----------
-// Halloween is on for all of October, Christmas from 1 December to 6 January. The pumpkin and
+// Halloween is on for all of October, Christmas from 12 November to 6 January. The pumpkin and
 // Christmas tree switches in the top bar turn either on or off on any day (never both), and are
 // remembered. ?halloween=1 or 0 and ?christmas=1 or 0 in the address beat both.
 const KEY = "pizza-party";

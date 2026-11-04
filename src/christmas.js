@@ -1,4 +1,4 @@
-// Christmas dress-up, on from 1 December to 6 January: a red and green tablecloth, monsters in Santa
+// Christmas dress-up, on from 12 November to 6 January: a red and green tablecloth, monsters in Santa
 // hats, antlers and elf hats, star pepperoni and holly basil. The grown-ups' Christmas tree switch in
 // the top bar (choice, remembered) beats the date, and ?christmas=1 or ?christmas=0 beats both.
 import { isHalloween } from "./halloween.js";
@@ -7,7 +7,7 @@ export function isChristmas(date = new Date(), search = "", choice = null) {
   const ask = new URLSearchParams(search).get("christmas");
   if (ask === "1" || ask === "0") return ask === "1";
   if (typeof choice === "boolean") return choice;
-  return date.getMonth() === 11 || (date.getMonth() === 0 && date.getDate() <= 6);
+  return (date.getMonth() === 10 && date.getDate() >= 12) || date.getMonth() === 11 || (date.getMonth() === 0 && date.getDate() <= 6);
 }
 
 // Halloween and Christmas are never on together. One that was asked for (in the address, or with
