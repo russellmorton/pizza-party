@@ -31,8 +31,24 @@ export const SPOOKY_SAUCES = {
   tomato: { name: "pumpkin", colour: "orange", css: "#f0801e", dark: "#c25a0c" },
   pesto: { name: "slime", colour: "green", css: "#8fd13a", dark: "#5e9e1c" },
 };
-export const sauceLook = (k, spooky = false) => spooky ? { ...SAUCES[k], ...SPOOKY_SAUCES[k] } : SAUCES[k];
-export const cheeseName = (spooky = false) => spooky ? "cobweb cheese" : "cheese";
+// At Christmas too, with Christmas names. `look` below is false (everyday), true or "halloween", or
+// "christmas".
+export const MERRY_TOPPINGS = {
+  pepperoni: { one: "star pepperoni", many: "star pepperonis", label: "Star" },
+  mushroom: { one: "snowy mushroom", many: "snowy mushrooms", label: "Snowy" },
+  olive: { one: "wreath olive", many: "wreath olives", label: "Wreath" },
+  pepper: { one: "Christmas tree pepper", many: "Christmas tree peppers", label: "Tree" },
+  pineapple: { one: "candy cane pineapple", many: "candy cane pineapples", label: "Candy cane" },
+  basil: { one: "holly leaf", many: "holly leaves", label: "Holly" },
+};
+export const MERRY_SAUCES = {
+  tomato: { name: "cranberry", colour: "red", css: "#c4173f", dark: "#8c0f2c" },
+  pesto: { name: "pine", colour: "green", css: "#2f7d3a", dark: "#1f5a28" },
+};
+const xmas = look => look === "christmas";
+export const sauceLook = (k, look = false) => xmas(look) ? { ...SAUCES[k], ...MERRY_SAUCES[k] } : look ? { ...SAUCES[k], ...SPOOKY_SAUCES[k] } : SAUCES[k];
+export const cheeseName = (look = false) => xmas(look) ? "snow cheese" : look ? "cobweb cheese" : "cheese";
+export const toppingLabel = (id, look = false) => xmas(look) ? MERRY_TOPPINGS[id].label : look ? SPOOKY_TOPPINGS[id].label : null;
 
 export const MAX_TOPPINGS = 24;
 export const ROLL_DRAG = 5;       // board widths of rolling to flatten the dough
@@ -40,7 +56,7 @@ export const LOG_HEAT = .3;
 
 const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 export const word = n => WORDS[n] ?? String(n);
-export const named = (id, n, spooky = false) => { const t = spooky ? SPOOKY_TOPPINGS[id] : TOPPING[id]; return n === 1 ? t.one : t.many; };
+export const named = (id, n, look = false) => { const t = xmas(look) ? MERRY_TOPPINGS[id] : look ? SPOOKY_TOPPINGS[id] : TOPPING[id]; return n === 1 ? t.one : t.many; };
 
 function shuffle(a, rand) {
   for (let i = a.length - 1; i > 0; i--) { const j = rand() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; }
@@ -61,8 +77,8 @@ export function makeOrder(served = 0, rand = Math.random) {
   return { sauce: rand() < .7 ? "tomato" : "pesto", cheese: served < 2 || rand() < .75, toppings };
 }
 
-export function orderText(order, spooky = false) {
-  const parts = Object.entries(order.toppings).map(([id, n]) => `${word(n)} ${named(id, n, spooky)}`);
+export function orderText(order, look = false) {
+  const parts = Object.entries(order.toppings).map(([id, n]) => `${word(n)} ${named(id, n, look)}`);
   return parts.length > 1 ? parts.slice(0, -1).join(", ") + " and " + parts.at(-1) : parts[0];
 }
 

@@ -1,15 +1,15 @@
 import {
-  TOPPINGS, SAUCES, SPOOKY_TOPPINGS, MAX_TOPPINGS, ROLL_DRAG,
+  TOPPINGS, SAUCES, MAX_TOPPINGS, ROLL_DRAG, toppingLabel,
   makeOrder, orderText, countToppings, orderStatus, sauceStatus, cheeseStatus, emptySlices, spotFor, hitTopping, cutFor,
   makeCoverage, dab, gaps, doughSize, bakeTick, coolTick, addLog, word, named, sauceLook, cheeseName,
 } from "./pizza.js";
 import {
   TOPPING_SIZE, drawBoard, drawPin, drawPizza, drawTopping, drawOvenAt, ovenFloor, drawPeel, drawCounter, drawBox, drawTarget,
-  sizeSauce, paintDabs, clearSauce, setSpooky,
+  sizeSauce, paintDabs, clearSauce, setSpooky, setMerry,
 } from "./draw.js";
 import { layout, blendLayout, stationAt, LID } from "./kitchen.js";
 import { monsterSVG, MONSTER_COLOURS, KINDS, INK, dressUp } from "./monster.js";
-import { isHalloween } from "./halloween.js";
+import { seasons } from "./christmas.js";
 
 const $ = id => document.getElementById(id);
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -106,30 +106,36 @@ function say(text, queue = false) {
 
 // ---------- title ----------
 function renderTitle() {
-  const cols = halloween ? ["#ff8c1a", "#b77cff", "#7ad67a"] : ["#d8392b", "#ffc83d", "#5a9e35"];
+  const cols = halloween ? ["#ff8c1a", "#b77cff", "#7ad67a"] : christmas ? ["#e8312f", "#3fae4f", "#ffc83d"] : ["#d8392b", "#ffc83d", "#5a9e35"];
   $("title").innerHTML = [..."Pizza Party"].map((ch, i) =>
     ch === " " ? " " : `<span aria-hidden="true" style="color:${cols[i % 3]}">${ch}</span>`).join("");
 }
 
-// ---------- Halloween ----------
-// On for all of October; the pumpkin switch in the top bar turns it on or off on any day, and is
-// remembered. ?halloween=1 or 0 in the address beats both.
+// ---------- Halloween and Christmas ----------
+// Halloween is on for all of October, Christmas from 1 December to 6 January. The pumpkin and
+// Christmas tree switches in the top bar turn either on or off on any day (never both), and are
+// remembered. ?halloween=1 or 0 and ?christmas=1 or 0 in the address beat both.
 const KEY = "pizza-party";
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(KEY)) || {}; } catch {}
-let halloween = isHalloween(new Date(), location.search, typeof saved.halloween === "boolean" ? saved.halloween : null);
+const choice = key => typeof saved[key] === "boolean" ? saved[key] : null;
+let { halloween, christmas } = seasons(new Date(), location.search, { halloween: choice("halloween"), christmas: choice("christmas") });
+const look = () => halloween ? "halloween" : christmas ? "christmas" : false;
 function applyHalloween() {
-  dressUp(halloween); setSpooky(halloween);
+  dressUp(look()); setSpooky(halloween); setMerry(christmas);
   document.body.classList.toggle("halloween", halloween);
+  document.body.classList.toggle("christmas", christmas);
   $("spooky").setAttribute("aria-pressed", String(halloween));
+  $("merry").setAttribute("aria-pressed", String(christmas));
   renderTitle();
 }
 applyHalloween();
-// What things are called and look like right now: at Halloween every ingredient has a spooky version.
-const name = (id, n) => named(id, n, halloween);
-const sauceOf = k => sauceLook(k, halloween);
-const cheese = () => cheeseName(halloween);
-const wanted = o => orderText(o, halloween);
+// What things are called and look like right now: at Halloween and Christmas every ingredient has
+// its own version.
+const name = (id, n) => named(id, n, look());
+const sauceOf = k => sauceLook(k, look());
+const cheese = () => cheeseName(look());
+const wanted = o => orderText(o, look());
 const wantsCheese = () => order?.cheese !== false;
 
 // ---------- icons ----------
@@ -144,7 +150,7 @@ const ICON = {
   cutter: `<svg viewBox="0 0 64 64"><g stroke="${INK}" stroke-width="3" stroke-linecap="round"><path d="M30 34 L54 8" stroke-width="10"/><path d="M30 34 L54 8" stroke="#ff5a5f" stroke-width="5"/><circle cx="24" cy="40" r="18" fill="#dfe3ec"/><circle cx="24" cy="40" r="4" fill="${INK}"/></g></svg>`,
 };
 
-const cheeseIcon = () => ICON.cheese(halloween ? "#f4f1ff" : undefined);
+const cheeseIcon = () => ICON.cheese(halloween ? "#f4f1ff" : christmas ? "#ffffff" : undefined);
 
 // Paints a topping into a small <canvas>, for the bins, the order ticket and your hand.
 function toppingCanvas(cv, id, cssSize, scale = .38, rot = id === "basil" ? -.5 : 0) {
@@ -242,7 +248,7 @@ function renderTray() {
   if (st === "roll") h = tool("roll", "Roll", ICON.pin);
   else if (st === "sauce") h = Object.keys(SAUCES).map(k => { const s = sauceOf(k); return tool(`ladle-${k}`, `${cap(s.name)} sauce`, ICON.ladle(s.css)); }).join("") + tool("undo", "Take some off", ICON.undo, "small");
   else if (st === "cheese") h = tool("cheese", cap(cheese()), cheeseIcon()) + tool("undo", "Take some off", ICON.undo, "small");
-  else if (st === "top") h = TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(name(t.id, 2))}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${halloween ? SPOOKY_TOPPINGS[t.id].label : cap(t.one)}</span></button>`).join("")
+  else if (st === "top") h = TOPPINGS.map(t => `<button class="tool bin" data-id="${t.id}" aria-label="${cap(name(t.id, 2))}"><span class="ico"><canvas aria-hidden="true"></canvas></span><span class="lbl">${toppingLabel(t.id, look()) ?? cap(t.one)}</span></button>`).join("")
     + tool("undo", "Take one off", ICON.undo, "small") + tool("peel", "Peel", ICON.peel, "go");
   else if (st === "bake") h = tool("log", "Wood", ICON.log) + meter + tool("peel", "Peel", ICON.peel, "go");
   else if (st === "cut") h = tool("cutter", "Cutter", ICON.cutter);
@@ -982,7 +988,7 @@ function party(done) {
   ov.className = "party";
   ov.setAttribute("role", "dialog");
   ov.setAttribute("aria-label", "Pizza party");
-  ov.innerHTML = `<div class="banner">${halloween ? "Spooky Pizza Party!" : "Pizza Party!"}</div>
+  ov.innerHTML = `<div class="banner">${halloween ? "Spooky Pizza Party!" : christmas ? "Christmas Pizza Party!" : "Pizza Party!"}</div>
     <div class="guests">${guests.map((g, i) => `<div class="guest" style="--d:${i * .09}s">${monsterSVG(g.kind, g.colour, "happy")}</div>`).join("")}</div>
     <div class="table"><canvas aria-hidden="true"></canvas></div>
     <button class="end-party" aria-label="End the party"><svg viewBox="0 0 20 20" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 4l12 12M16 4L4 16"/></svg></button>`;
@@ -997,7 +1003,7 @@ function party(done) {
   for (let i = 0; i < 160; i++) { const a = Math.random() * 7, d = .95 * Math.sqrt(Math.random()); big.cheese.push({ x: Math.cos(a) * d, y: Math.sin(a) * d, a, l: .08, spot: Math.random() < .14 }); }
   for (let i = 0; i < 16; i++) big.toppings.push({ id: TOPPINGS[i % TOPPINGS.length].id, ...spotFor(big.toppings), rot: Math.random() * 6 });
   drawPizza(px, size / 2, size / 2, size * .46, big);
-  say(halloween ? "Spooky pizza party!" : "Pizza party!");
+  say(halloween ? "Spooky pizza party!" : christmas ? "Christmas pizza party! Ho ho ho!" : "Pizza party!");
   const len = jingle();
   const bursts = setInterval(confetti, 1300); confetti();
   let over = false;
@@ -1046,7 +1052,8 @@ function confetti() {
   if (reduce) return;
   cc.width = innerWidth; cc.height = innerHeight;
   const r = cv.getBoundingClientRect();
-  const cols = halloween ? ["#ff8c1a", "#8a5cf0", "#7ad67a", customer.colour, "#2b2733"] : ["#d8392b", "#ffc83d", "#5a9e35", customer.colour, "#7cc6ff"];
+  const cols = halloween ? ["#ff8c1a", "#8a5cf0", "#7ad67a", customer.colour, "#2b2733"]
+    : christmas ? ["#e8312f", "#3fae4f", "#ffd84a", customer.colour, "#ffffff"] : ["#d8392b", "#ffc83d", "#5a9e35", customer.colour, "#7cc6ff"];
   for (let i = 0; i < 90; i++) {
     bits.push({
       x: r.left + r.width / 2, y: r.top + r.height / 2,
@@ -1097,10 +1104,12 @@ $("restart").onclick = () => {
   setStep("roll");
   say("Let's start again. Roll the dough!");
 };
-$("spooky").onclick = () => {
+// Turning one switch on turns the other off.
+function flip(which) {
   audio();
-  halloween = !halloween;
-  try { localStorage.setItem(KEY, JSON.stringify({ ...saved, halloween })); } catch {}
+  if (which === "halloween") { halloween = saved.halloween = !halloween; if (halloween && christmas) christmas = saved.christmas = false; }
+  else { christmas = saved.christmas = !christmas; if (christmas && halloween) halloween = saved.halloween = false; }
+  try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch {}
   applyHalloween();
   renderCreature(P.step === "eat" ? "happy" : "wait");
   renderShelf();
@@ -1108,8 +1117,9 @@ $("spooky").onclick = () => {
   renderTicket();
   clearSauce(sauceCv); paintDabs(sauceCv, P.dabs); lastSig = null;
   if (held) renderHeld();
-  say(halloween ? "Happy Halloween!" : "No more Halloween.");
-};
+}
+$("spooky").onclick = () => { flip("halloween"); say(halloween ? "Happy Halloween!" : "No more Halloween."); };
+$("merry").onclick = () => { flip("christmas"); say(christmas ? "Merry Christmas!" : "No more Christmas."); };
 $("mute").onclick = () => {
   muted = !muted;
   $("wave").style.display = muted ? "none" : "";

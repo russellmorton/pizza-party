@@ -5,7 +5,7 @@ let errors;
 test.beforeEach(async ({ page }) => {
   errors = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.goto("/?halloween=0");   // Halloween (all of October) has its own tests at the end
+  await page.goto("/?halloween=0&christmas=0");   // Halloween (October) and Christmas (December) have their own tests at the end
 });
 test.afterEach(() => expect(errors).toEqual([]));
 
@@ -358,6 +358,69 @@ test.describe("at Halloween", () => {
   test("the top bar still fits on a small phone", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await page.goto("/?halloween=1");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    const bar = await page.locator(".bar").boundingBox(), mute = await page.locator("#mute").boundingBox();
+    expect(mute.x + mute.width).toBeLessThanOrEqual(bar.x + bar.width + 1);
+  });
+});
+
+test.describe("at Christmas", () => {
+  const merry = page => page.getByRole("button", { name: "Christmas", exact: true });
+  const spooky = page => page.getByRole("button", { name: "Halloween" });
+
+  test("the monsters come dressed for Christmas", async ({ page }) => {
+    await page.goto("/?christmas=1");
+    await expect(page.locator("body")).toHaveClass(/christmas/);
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#creature .costume").first()).toBeAttached();
+  });
+
+  test("the Christmas tree switch turns it on and off, is remembered, and turns Halloween off", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 9, 20, 10, 0));   // October: Halloween by the date
+    await page.goto("/");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "false");
+    await merry(page).click();
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("body")).toHaveClass(/christmas/);
+    await expect(page.locator("body")).not.toHaveClass(/halloween/);
+    await page.reload();
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "true");
+    await spooky(page).click();
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "false");
+    await page.reload();
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "false");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("is on in December without touching the switch", async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 11, 20, 10, 0));
+    await page.goto("/");
+    await expect(merry(page)).toHaveAttribute("aria-pressed", "true");
+    await expect(spooky(page)).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("every ingredient has a Christmas version", async ({ page }) => {
+    await page.goto("/?christmas=1");
+    await expect(page.locator(".sauce-line")).toContainText(/Cranberry sauce|Pine sauce/);
+    await expect(page.locator(".cheese-line")).toHaveText("Snow cheese");
+    await roll(page);
+    await expect(tool(page, "Cranberry sauce")).toBeVisible();
+    await expect(tool(page, "Pine sauce")).toBeVisible();
+    await chip(page, "Cheese").click();
+    await expect(tool(page, "Snow cheese")).toBeVisible();
+    await chip(page, "Toppings").click();
+    for (const name of ["Star pepperonis", "Snowy mushrooms", "Wreath olives", "Christmas tree peppers", "Candy cane pineapples", "Holly leaves"])
+      await expect(tool(page, name)).toBeVisible();
+    await merry(page).click();                        // and back again, straight away
+    await expect(tool(page, "Mushrooms")).toBeVisible();
+    await expect(page.locator(".cheese-line")).toHaveText("Cheese");
+  });
+
+  test("the top bar still fits on a small phone", async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.goto("/?christmas=1");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
     const bar = await page.locator(".bar").boundingBox(), mute = await page.locator("#mute").boundingBox();
     expect(mute.x + mute.width).toBeLessThanOrEqual(bar.x + bar.width + 1);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  TOPPINGS, TOPPING, SAUCES, SPOOKY_TOPPINGS, SPOOKY_SAUCES, MAX_TOPPINGS, PORTIONS, makeOrder, orderText, named, sauceLook, cheeseName,
+  TOPPINGS, TOPPING, SAUCES, SPOOKY_TOPPINGS, SPOOKY_SAUCES, MERRY_TOPPINGS, MERRY_SAUCES, toppingLabel, MAX_TOPPINGS, PORTIONS, makeOrder, orderText, named, sauceLook, cheeseName,
   countToppings, orderStatus, sauceStatus, cheeseStatus, sliceOf, emptySlices, spotFor, hitTopping,
   makeCoverage, dab, coverage, gaps, cutFor, doughSize, lumpiness, bakeTick, coolTick, addLog,
 } from "../../src/pizza.js";
@@ -77,6 +77,26 @@ test("at Halloween every ingredient has a spooky version with its own name", () 
   assert.equal(cheeseName(), "cheese");
   assert.equal(cheeseName(true), "cobweb cheese");
   assert.equal(orderText({ toppings: { olive: 3, basil: 4 } }, true), "three spider olives and four basil bats");
+});
+
+test("at Christmas every ingredient has a Christmas version with its own name", () => {
+  for (const t of TOPPINGS) {
+    const m = MERRY_TOPPINGS[t.id];
+    assert.ok(m.one && m.many && m.label);
+    assert.notEqual(m.one, t.one);
+    assert.notEqual(m.one, SPOOKY_TOPPINGS[t.id].one);
+    assert.equal(named(t.id, 1, "christmas"), m.one);
+    assert.equal(named(t.id, 3, "christmas"), m.many);
+    assert.equal(named(t.id, 3, "halloween"), SPOOKY_TOPPINGS[t.id].many);
+    assert.equal(toppingLabel(t.id, "christmas"), m.label);
+    assert.equal(toppingLabel(t.id), null);
+  }
+  for (const k of Object.keys(SAUCES)) {
+    assert.notEqual(MERRY_SAUCES[k].name, SAUCES[k].name);
+    assert.equal(sauceLook(k, "christmas").name, MERRY_SAUCES[k].name);
+  }
+  assert.equal(cheeseName("christmas"), "snow cheese");
+  assert.equal(orderText({ toppings: { olive: 3, basil: 4 } }, "christmas"), "three wreath olives and four holly leaves");
 });
 
 test("orders read like a sentence", () => {

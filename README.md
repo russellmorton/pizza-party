@@ -16,6 +16,7 @@ Tools stay in your hand until you put them back (tap their button again); a topp
 - **Orders:** each monster wants a sauce, cheese or no cheese, and toppings, shown on its order ticket as pictures and dots, in amounts a real pizza would have: eight to ten of one topping, four to six each of two, or three to five each of three. Orders start with one kind of topping and grow to three. Most monsters want cheese (the first two always do); for one that doesn't, the ticket crosses the cheese out and you skip the Cheese stage. The toppings have to be spread out, too: while you decorate, dashed lines show where the eight slices will be, the ticket's "Every slice" pie fills in, and once the count is right any bare slice glows until a topping is moved onto it. Every fifth monster throws a pizza party.
 - **Free play:** make any pizza you like.
 - **At Halloween** (all of October) the tablecloth turns purple and orange, the monsters come in costume (a witch's hat, bat wings, a jack-o'-lantern on an antenna or vampire fangs). Every ingredient has a spooky version with its own name: the pepperoni is carved like jack-o'-lanterns, the mushrooms are little ghosts, the olives are spiders, the green pepper rings are googly eyeballs, the pineapple is striped like candy corn, the basil leaves are bats, the tomato sauce is pumpkin, the pesto is slime and the cheese is cobwebs. Every fifth monster throws a Spooky Pizza Party. The pumpkin button in the top bar turns it on or off on any day and is remembered; `?halloween=1` or `?halloween=0` in the address overrides both.
+- **At Christmas** (1 December to 6 January) the tablecloth turns red and green, and the monsters come in a Santa hat, reindeer antlers with a red nose, a star on the antenna or an elf hat. Every ingredient has a Christmas version with its own name: the pepperoni is cut into stars, the mushrooms have snow on top, the olives are little wreaths, the green pepper rings are Christmas trees, the pineapple is striped like a candy cane, the basil is holly with red berries, the tomato sauce is cranberry, the pesto is pine and the cheese is snow. Every fifth monster throws a Christmas Pizza Party. The Christmas tree button next to the pumpkin turns it on or off on any day and is remembered (turning one on turns the other off); `?christmas=1` or `?christmas=0` overrides both.
 
 Live at https://pizza-party-wheat.vercel.app
 
@@ -44,6 +45,7 @@ npm test           # both
 - `src/draw.js`: canvas drawing for the board, pizza, toppings, oven, peel, counter and box
 - `src/monster.js`: the monster customers
 - `src/halloween.js`: when it's Halloween, and the monsters' costumes
+- `src/christmas.js`: when it's Christmas (never at the same time as Halloween), and the monsters' Christmas outfits
 - `src/game.js`: everything else, including steps, your hand, input, sound, voice and the party
 
 ## Deploying

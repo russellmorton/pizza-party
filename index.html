@@ -46,6 +46,12 @@ body.halloween .bar h1 span { -webkit-text-stroke-color: #fff6e0; }
 body.halloween .steps li:not(.now):not(.done):not(.need) { background: rgba(255,255,255,.85); }
 body.halloween .tray .hint:not(.said) { color: #fff6e0; }
 #spooky[aria-pressed="true"] { background: #ff8c1a; }
+/* Christmas (1 December to 6 January, or the Christmas tree switch): a red and green tablecloth. See src/christmas.js */
+body.christmas { --cloth: #1f6b3a; --check: rgba(232, 49, 47, .32); }
+body.christmas .bar h1 span { -webkit-text-stroke-color: #fff6e0; }
+body.christmas .steps li:not(.now):not(.done):not(.need) { background: rgba(255,255,255,.85); }
+body.christmas .tray .hint:not(.said) { color: #fff6e0; }
+#merry[aria-pressed="true"] { background: #3fae4f; }
 button { font: inherit; color: inherit; cursor: pointer; }
 button:focus-visible { outline: 4px solid var(--ink); outline-offset: 4px; }
 [hidden] { display: none !important; }
@@ -254,6 +260,9 @@ body.holding .work canvas { cursor: grabbing; }
     </button>
     <button class="icon-btn" id="spooky" aria-label="Halloween" aria-pressed="false">
       <svg viewBox="0 0 32 32" aria-hidden="true" stroke="#26314a" stroke-width="2" stroke-linejoin="round"><path d="M15 8l-1-5 4 0-1 5z" fill="#6d8f2e"/><ellipse cx="11" cy="18" rx="8" ry="10" fill="#ffa040"/><ellipse cx="21" cy="18" rx="8" ry="10" fill="#ffa040"/><ellipse cx="16" cy="18" rx="6" ry="10.5" fill="#ffb760"/><path d="M10 16h4l-2-3zM18 16h4l-2-3zM10 21q6 5 12 0q-6 2-12 0z" fill="#26314a" stroke-width="1"/></svg>
+    </button>
+    <button class="icon-btn" id="merry" aria-label="Christmas" aria-pressed="false">
+      <svg viewBox="0 0 32 32" aria-hidden="true" stroke="#26314a" stroke-width="2" stroke-linejoin="round"><path d="M14 25h4v5h-4z" fill="#8a5232"/><path d="M16 4l-8 10h4l-6 8h5l-5 6h20l-5-6h5l-6-8h4z" fill="#3fae4f"/><circle cx="13" cy="17" r="1.6" fill="#ff5a5f" stroke="none"/><circle cx="19" cy="21" r="1.6" fill="#ffc83d" stroke="none"/><circle cx="17" cy="12" r="1.6" fill="#7cc6ff" stroke="none"/><path d="M16 1.5l1.2 2.6 2.8.3-2.1 1.9.6 2.8-2.5-1.4-2.5 1.4.6-2.8-2.1-1.9 2.8-.3z" fill="#ffc83d" stroke-width="1"/></svg>
     </button>
     <button class="icon-btn" id="mute" aria-label="Sound on">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path id="wave" d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
