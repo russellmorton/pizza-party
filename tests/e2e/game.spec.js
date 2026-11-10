@@ -213,6 +213,37 @@ test.describe("with reduced motion", () => {
     await expect(dotsOn(page, id)).toHaveCount(1);
   });
 
+  test("a topping stays in your hand until you pick up another or the pizza is full, and the peel still pulses", async ({ page }) => {
+    const order = await readOrder(page);
+    await roll(page);
+    await sauceAndCheese(page, order.sauce, order.cheese);
+    let n = 0;
+    for (const [id, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) await decorate(page, id, n++);
+    const last = Object.keys(order.toppings).at(-1);
+    await expect(tool(page, binName[last])).toHaveAttribute("aria-pressed", "true");   // the last one is still in your hand...
+    await expect(page.locator("#tool-peel.pulse")).toBeVisible();                       // ...and the peel says it's ready all the same
+
+    const other = Object.keys(binName).find(id => id !== last);
+    await tool(page, binName[other]).click();                                            // picking up another swaps them
+    await expect(tool(page, binName[other])).toHaveAttribute("aria-pressed", "true");
+    await expect(tool(page, binName[last])).toHaveAttribute("aria-pressed", "false");
+    await expect(page.locator("#tray .bin[aria-pressed=true]")).toHaveCount(1);
+
+    const k = await kitchen(page, "board");
+    for (; n < 24; n++) {                                                                // MAX_TOPPINGS
+      await expect(tool(page, binName[other])).toHaveAttribute("aria-pressed", "true");
+      await tap(page, k.board(...spot(n)));
+    }
+    await expect(tool(page, binName[other])).toHaveAttribute("aria-pressed", "false");  // the pizza is full, so it goes back
+    await expect(page.locator("#tray .bin[aria-pressed=true]")).toHaveCount(0);
+    await tool(page, binName[other]).click();
+    await expect(page.locator("#announce")).toContainText("The pizza is full!");
+    await expect(page.locator("#tray .bin[aria-pressed=true]")).toHaveCount(0);
+    await tool(page, "Take one off").click();                                            // with room again, it can come back out
+    await tool(page, binName[other]).click();
+    await expect(tool(page, binName[other])).toHaveAttribute("aria-pressed", "true");
+  });
+
   test("too many toppings must come off before the peel will take the pizza", async ({ page }) => {
     const order = await readOrder(page);
     await roll(page);
