@@ -279,7 +279,7 @@ function updateTray() {
   const u = $("tool-undo");
   if (u) u.disabled = !(held && !keepsTool()) && !{ sauce: P.pours.length, cheese: P.handfuls.length, top: P.toppings.length }[P.step];
   const peel = $("tool-peel");
-  if (peel) peel.classList.toggle("pulse", !held && (P.step === "top" ? canDecorate() && readyToBake() : P.where === "oven" && P.bake >= 1));
+  if (peel) peel.classList.toggle("pulse", (!held || held.kind === "topping") && (P.step === "top" ? canDecorate() && readyToBake() : P.where === "oven" && P.bake >= 1));
   showHint();
   creatureEl.classList.toggle("target", held?.kind === "box");
   renderSteps();
@@ -336,7 +336,7 @@ const workLabel = {
   roll: "The kitchen. A ball of dough on the board: roll it flat.",
   sauce: "The kitchen. Pick up a ladle and tap the pizza to pour on sauce.",
   cheese: "The kitchen. Pick up the cheese and tap the pizza to sprinkle it.",
-  top: "The kitchen. Pick up a topping, then tap the pizza to put it down. Press Enter to put down what you're holding.",
+  top: "The kitchen. Pick up a topping, then tap the pizza to put them down, as many as you like. Press Enter to put down what you're holding.",
   bake: "The kitchen, with the oven.",
   cut: "The kitchen, with the cutting board.",
   serve: "The kitchen, with the pizza box.",
@@ -509,9 +509,11 @@ function targetShape() {
 
 // ---------- your hand ----------
 // Tap something to pick it up and it comes with you; tap where it should go to use it.
-// Tools (ladles, cheese, peel, cutter) stay in your hand until you put them back;
-// a topping or a log is one piece at a time.
-let held = null;                       // { kind, id, rot }
+// Tools (ladles, cheese, peel, cutter) stay in your hand until you put them back, and so
+// does a topping from its box: you keep putting them down until you tap the box again.
+// A topping lifted off the pizza is just that one, being moved; a log is one at a time.
+let held = null;                       // { kind, id, rot, fromBin }
+let heldAt = { x: 0, y: 0 };
 let pointerKind = "mouse";
 const heldEl = document.createElement("div");
 heldEl.className = "held"; heldEl.hidden = true; heldEl.setAttribute("aria-hidden", "true");
@@ -522,7 +524,7 @@ addEventListener("pointermove", e => {
   lastPointer.x = e.clientX; lastPointer.y = e.clientY;
   if (held && e.pointerType !== "touch") moveHeld(e.clientX, e.clientY);
 });
-function moveHeld(x, y) { heldEl.style.transform = `translate(${x}px,${y}px) rotate(${held?.rot || 0}rad)`; }
+function moveHeld(x, y) { heldAt = { x, y }; heldEl.style.transform = `translate(${x}px,${y}px) rotate(${held?.rot || 0}rad)`; }
 
 function svgHeld(svg, size) {
   heldEl.innerHTML = `<div style="width:${size}px;height:${size}px">${svg}</div>`;
@@ -563,8 +565,8 @@ function renderHeld() {
   heldEl.style.margin = `${-c[1]}px 0 0 ${-c[0]}px`;
 }
 // Picks something up. (x, y) is where it appears on screen.
-function hold(kind, id, x, y, rot = 0) {
-  held = { kind, id, rot };
+function hold(kind, id, x, y, rot = 0, fromBin = false) {
+  held = { kind, id, rot, fromBin };
   renderHeld();
   heldEl.hidden = false;
   document.body.classList.add("holding");
@@ -674,9 +676,9 @@ function keyUse() {
   if (!held && P.where === "box") return pickUpBox(r.left + L.counter.box.x, r.top + L.counter.box.y);
   say(hintText());
 }
-// "Take some off": the last ladle of sauce, handful of cheese or topping. A topping or tool
-// in your hand goes back first, but a ladle or the cheese stays in your hand.
-const keepsTool = () => held && (held.kind === "ladle" || held.kind === "cheese");
+// "Take some off": the last ladle of sauce, handful of cheese or topping. A tool, or a topping
+// being moved, goes back first, but a ladle, the cheese or a topping from its box stays in your hand.
+const keepsTool = () => held && (held.kind === "ladle" || held.kind === "cheese" || (held.kind === "topping" && held.fromBin));
 function undo() {
   if (held && !carrying() && !keepsTool()) return putAway();
   if (P.where !== "board") return;
@@ -769,13 +771,19 @@ function tapBin(id, bin, byKeyboard) {
     say("The pizza is full!");
     return;
   }
-  hold("topping", id, ...fromButton(bin, byKeyboard), Math.random() * Math.PI * 2);
+  hold("topping", id, ...fromButton(bin, byKeyboard), Math.random() * Math.PI * 2, true);
   tone(600, 0, .1, "sine", .12, 900);
   say(cap(name(id, 1)));
 }
+// A topping from its box stays in your hand, ready for the next one, until the pizza is full.
 function putDown(u) {
   const t = { id: held.id, x: u.x, y: u.y, rot: held.rot };
-  putAway(true);
+  const again = held.fromBin && P.toppings.length + 1 < MAX_TOPPINGS;
+  if (again) {
+    held.rot = Math.random() * Math.PI * 2;
+    moveHeld(heldAt.x, heldAt.y);
+    heldEl.animate([{ scale: .7 }, { scale: 1 }], { duration: reduce ? 0 : 160 });
+  } else putAway(true);
   landTopping(t);
 }
 function landTopping(t) {

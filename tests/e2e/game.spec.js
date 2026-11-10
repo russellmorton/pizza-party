@@ -67,9 +67,14 @@ async function sauceAndCheese(page, sauce = "tomato", cheese = true) {
   await chip(page, "Toppings").click();
   await expect.poll(() => step(page)).toBe("top");
 }
+// Picks a topping up from its box, unless it's already in your hand (it stays there after each one).
+async function holdTopping(page, id) {
+  const bin = tool(page, binName[id]);
+  if (await bin.getAttribute("aria-pressed") !== "true") await bin.click();
+}
 async function decorate(page, id, i) {
   const k = await kitchen(page, "board");
-  await tool(page, binName[id]).click();
+  await holdTopping(page, id);
   await tap(page, k.board(...spot(i)));
 }
 async function bake(page) {
@@ -192,13 +197,19 @@ test.describe("with reduced motion", () => {
     await expect(dotsOn(page, id)).toHaveCount(0);   // still in the hand
     await tap(page, k.board(.3, .2));
     await expect(dotsOn(page, id)).toHaveCount(1);
-    await tap(page, k.board(.3, .2));                // pick it back up off the pizza...
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "true");   // still holding it...
+    await tap(page, k.board(-.3, .3));               // ...so another one goes straight down
+    await expect(dotsOn(page, id)).toHaveCount(2);
+    await tool(page, "Take one off").click();        // takes the last one off, and keeps the hand full
+    await expect(dotsOn(page, id)).toHaveCount(1);
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "true");
+    await tool(page, binName[id]).click();           // tapping the box again puts it back
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "false");
+    await tap(page, k.board(.3, .2));                // pick one up off the pizza...
     await expect(dotsOn(page, id)).toHaveCount(0);
     await tap(page, k.board(-.3, -.3));              // ...and put it somewhere else
     await expect(dotsOn(page, id)).toHaveCount(1);
-    await tool(page, binName[id]).click();           // tapping the box again puts it back
-    await tool(page, binName[id]).click();
-    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "false");
+    await expect(tool(page, binName[id])).toHaveAttribute("aria-pressed", "false");  // moving one is just that one
     await expect(dotsOn(page, id)).toHaveCount(1);
   });
 
@@ -226,7 +237,7 @@ test.describe("with reduced motion", () => {
     await roll(page);
     await sauceAndCheese(page, order.sauce, order.cheese);
     const pile = async () => (await kitchen(page, "board")).board(.45, .18);   // all in one slice
-    for (const [id, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) { await tool(page, binName[id]).click(); await tap(page, await pile()); }
+    for (const [id, m] of Object.entries(order.toppings)) for (let i = 0; i < m; i++) { await holdTopping(page, id); await tap(page, await pile()); }
     await expect(page.locator(".ticket .line[data-id].full")).toHaveCount(Object.keys(order.toppings).length);
     await expect(page.locator(".spread-line .slices path.on")).toHaveCount(1);
     await expect(page.locator(".spread-line")).not.toHaveClass(/full/);
